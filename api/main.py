@@ -58,3 +58,18 @@ def subscribe(req: SubscribeRequest):
             conn.commit()
 
     return {"status": "subscribed", "email": req.email}
+
+@app.get("/upgrade-db")
+def upgrade_db():
+    from api.db import get_conn
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                ALTER TABLE subscribers
+                ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
+            """)
+        conn.commit()
+
+    return {"status": "table upgraded"}
