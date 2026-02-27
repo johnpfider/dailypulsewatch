@@ -1,5 +1,10 @@
 from fastapi import FastAPI
 from api.db import close_pool, get_conn
+from pydantic import BaseModel
+
+class SubscribeRequest(BaseModel):
+    email: str
+    zip: str
 
 app = FastAPI()
 
@@ -37,3 +42,19 @@ def init_db():
 @app.on_event("shutdown")
 def shutdown_event():
     close_pool()
+
+@app.post("/subscribe")
+def subscribe(req: SubscribeRequest):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO subscribers (email, zip)
+                VALUES (%s, %s)
+                ON CONFLICT (email)
+                DO UPDATE SET
+                    zip = EXCLUDED.zip,
+                    is_active = TRUE;
+            """, (req.email, req.zip))
+            conn.commit()
+
+    return {"status": "subscribed", "email": req.email}
