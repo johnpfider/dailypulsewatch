@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from api.db import close_pool, get_conn
 from pydantic import BaseModel
+from api.models import SubscribeRequest, UnsubscribeRequest
 
 class SubscribeRequest(BaseModel):
     email: str
