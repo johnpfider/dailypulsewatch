@@ -1,21 +1,41 @@
-from fastapi import FastAPI
-from api.db import close_pool, get_conn
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from api.models import SubscribeRequest, UnsubscribeRequest
+from api.db import close_pool, get_conn
+
+
+# -----------------------
+# Request Models
+# -----------------------
 
 class SubscribeRequest(BaseModel):
     email: str
     zip: str
 
+
+class UnsubscribeRequest(BaseModel):
+    email: str
+
+
+# -----------------------
+# App Setup
+# -----------------------
+
 app = FastAPI()
+
+
+# -----------------------
+# Basic Health Routes
+# -----------------------
 
 @app.get("/")
 def root():
     return {"status": "ok"}
 
+
 @app.get("/healthz")
 def health_check():
     return {"status": "healthy"}
+
 
 @app.get("/db-check")
 def db_check():
@@ -24,6 +44,11 @@ def db_check():
             cur.execute("SELECT 1;")
             val = cur.fetchone()[0]
     return {"db": "ok", "value": val}
+
+
+# -----------------------
+# Initialize DB
+# -----------------------
 
 @app.get("/init-db")
 def init_db():
@@ -40,13 +65,13 @@ def init_db():
             conn.commit()
     return {"status": "subscribers table ready"}
 
-@app.on_event("shutdown")
-def shutdown_event():
-    close_pool()
+
+# -----------------------
+# Subscribe
+# -----------------------
 
 @app.post("/subscribe")
 def subscribe(req: SubscribeRequest):
-    from api.db import get_conn
     from api.geo import geocode_zip
 
     try:
@@ -56,9 +81,9 @@ def subscribe(req: SubscribeRequest):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # Check if email already exists
+            # Check if email exists
             cur.execute(
-                "SELECT id, active FROM subscribers WHERE email = %s",
+                "SELECT email, is_active FROM subscribers WHERE email = %s",
                 (req.email,)
             )
             row = cur.fetchone()
@@ -66,13 +91,13 @@ def subscribe(req: SubscribeRequest):
             if row:
                 # Reactivate if previously unsubscribed
                 cur.execute(
-                    "UPDATE subscribers SET active = TRUE WHERE email = %s",
+                    "UPDATE subscribers SET is_active = TRUE WHERE email = %s",
                     (req.email,)
                 )
                 message = "reactivated"
             else:
                 cur.execute(
-                    "INSERT INTO subscribers (email, zip, active) VALUES (%s, %s, TRUE)",
+                    "INSERT INTO subscribers (email, zip, is_active) VALUES (%s, %s, TRUE)",
                     (req.email, req.zip)
                 )
                 message = "subscribed"
@@ -81,31 +106,28 @@ def subscribe(req: SubscribeRequest):
 
     return {"status": message, "email": req.email}
 
+
+# -----------------------
+# Unsubscribe
+# -----------------------
+
 @app.post("/unsubscribe")
 def unsubscribe(req: UnsubscribeRequest):
-    from api.db import get_conn
-
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE subscribers SET active = FALSE WHERE email = %s",
+                "UPDATE subscribers SET is_active = FALSE WHERE email = %s",
                 (req.email,)
             )
         conn.commit()
 
     return {"status": "unsubscribed", "email": req.email}
 
-@app.get("/upgrade-db")
-def upgrade_db():
-    from api.db import get_conn
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                ALTER TABLE subscribers
-                ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE,
-                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
-            """)
-        conn.commit()
+# -----------------------
+# Shutdown Cleanup
+# -----------------------
 
-    return {"status": "table upgraded"}
+@app.on_event("shutdown")
+def shutdown_event():
+    close_pool()
