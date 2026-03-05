@@ -73,9 +73,16 @@ def init_db():
 @app.post("/subscribe")
 def subscribe(req: SubscribeRequest):
 
+    from api.geo import geocode_zip
+
+    try:
+        lat, lon = geocode_zip(req.zip)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid ZIP code")
+
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # Check if email exists
+
             cur.execute(
                 "SELECT email, is_active FROM subscribers WHERE email = %s",
                 (req.email,)
