@@ -122,6 +122,31 @@ def unsubscribe(req: UnsubscribeRequest):
 
     return {"status": "unsubscribed", "email": req.email}
 
+# -----------------------
+# Subscriber Count
+# -----------------------
+
+@app.get("/subscriber-count")
+def subscriber_count():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+
+            # active subscribers
+            cur.execute(
+                "SELECT COUNT(*) FROM subscribers WHERE is_active = TRUE"
+            )
+            active = cur.fetchone()[0]
+
+            # total subscribers ever
+            cur.execute(
+                "SELECT COUNT(*) FROM subscribers"
+            )
+            total = cur.fetchone()[0]
+
+    return {
+        "active_subscribers": active,
+        "total_subscribers": total
+    }
 
 # -----------------------
 # Shutdown Cleanup
