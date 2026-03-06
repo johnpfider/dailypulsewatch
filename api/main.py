@@ -123,6 +123,30 @@ def unsubscribe(req: UnsubscribeRequest):
     return {"status": "unsubscribed", "email": req.email}
 
 # -----------------------
+# Get All Subscribers
+# -----------------------
+
+@app.get("/subscribers")
+def get_all_subscribers():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT email, zip FROM subscribers WHERE is_active = TRUE"
+            )
+
+            rows = cur.fetchall()
+
+    subscribers = []
+
+    for row in rows:
+        subscribers.append({
+            "email": row[0],
+            "zip": row[1]
+        })
+
+    return subscribers
+
+# -----------------------
 # Subscriber Count
 # -----------------------
 
