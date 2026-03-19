@@ -70,13 +70,21 @@ def init_db():
 # Subscribe
 # -----------------------
 
+from fastapi import Form
+
 @app.post("/subscribe")
-def subscribe(req: SubscribeRequest):
+def subscribe(
+    email: str = Form(...),
+    zip: str = Form(...),
+    horoscope: str = Form(None)
+):
 
     from api.geo import geocode_zip
 
+    print("Incoming:", email, zip, horoscope)  # 👈 DEBUG
+
     try:
-        lat, lon = geocode_zip(req.zip)
+        lat, lon = geocode_zip(zip)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid ZIP code")
 
@@ -85,26 +93,26 @@ def subscribe(req: SubscribeRequest):
 
             cur.execute(
                 "SELECT email, is_active FROM subscribers WHERE email = %s",
-                (req.email,)
+                (email,)
             )
             row = cur.fetchone()
 
             if row:
                 cur.execute(
                     "UPDATE subscribers SET is_active = TRUE WHERE email = %s",
-                    (req.email,)
+                    (email,)
                 )
                 message = "reactivated"
             else:
                 cur.execute(
                     "INSERT INTO subscribers (email, zip, is_active) VALUES (%s, %s, TRUE)",
-                    (req.email, req.zip)
+                    (email, zip)
                 )
                 message = "subscribed"
 
         conn.commit()
 
-    return {"status": message, "email": req.email}
+    return {"status": message, "email": email}
 
 # -----------------------
 # Unsubscribe

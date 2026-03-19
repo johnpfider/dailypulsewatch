@@ -1,23 +1,7 @@
-import requests
 from api.geo import geocode_zip
+from mailer.content import fetch_weather
 
 weather_cache = {}
-
-
-def get_weather(zip_code: str):
-
-    lat, lon = geocode_zip(zip_code)
-
-    url = (
-        f"https://api.open-meteo.com/v1/forecast"
-        f"?latitude={lat}&longitude={lon}"
-        f"&current_weather=true"
-    )
-
-    r = requests.get(url)
-    data = r.json()
-
-    return data["current_weather"]
 
 
 def get_cached_weather(zip_code: str):
@@ -25,7 +9,9 @@ def get_cached_weather(zip_code: str):
     if zip_code in weather_cache:
         return weather_cache[zip_code]
 
-    weather = get_weather(zip_code)
+    lat, lon = geocode_zip(zip_code)
+
+    weather = fetch_weather(lat, lon)
 
     weather_cache[zip_code] = weather
 

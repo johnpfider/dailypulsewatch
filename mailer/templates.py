@@ -30,7 +30,7 @@ def build_email(moon, weather, horoscopes, quote):
         commute_details_html = f"""
           <div style="border-top:1px solid #E5E7EB; padding-top:10px;">
             <p style="margin:0;">
-              <strong>Precipitation:</strong> {weather.precip_mm} mm<br/>
+              <strong>Precipitation:</strong> {round(weather.precip_mm * 0.03937, 2)} in<br/>
               <strong>Black Ice Risk:</strong> {ice_risk}
             </p>
             <p style="margin-top:8px;">{ice_text}</p>
