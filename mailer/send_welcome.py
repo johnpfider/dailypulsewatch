@@ -1,7 +1,15 @@
 from mailer.weather_cache import get_cached_weather
 from mailer.content import build_email_content, fetch_pollen
 from api.geo import geocode_zip
+import boto3
+import os
 
+ses = boto3.client(
+    "ses",
+    region_name=os.getenv("AWS_REGION"),
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+)
 
 def send_welcome_email(to_email: str, zip_code: str):
 
