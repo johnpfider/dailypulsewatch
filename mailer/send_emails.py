@@ -1,5 +1,7 @@
 import requests
 from collections import defaultdict
+import boto3
+import os
 
 from mailer.weather_cache import get_cached_weather
 from mailer.content import build_email_content, fetch_pollen
@@ -7,16 +9,50 @@ from api.geo import geocode_zip
 
 API_URL = "https://dailypulsewatch.onrender.com/subscribers"
 
+# -----------------------
+# AWS SES Setup
+# -----------------------
+ses = boto3.client(
+    "ses",
+    region_name=os.getenv("AWS_REGION"),
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+)
 
+
+def send_email(to_email, subject, body):
+    """Send email via Amazon SES"""
+    try:
+        response = ses.send_email(
+            Source=os.getenv("FROM_EMAIL"),
+            Destination={"ToAddresses": [to_email]},
+            Message={
+                "Subject": {"Data": subject},
+                "Body": {
+                    "Text": {"Data": body}
+                },
+            },
+        )
+        print(f"✅ Sent to {to_email}")
+        return response
+
+    except Exception as e:
+        print(f"❌ Failed to send to {to_email}: {e}")
+
+
+# -----------------------
+# Fetch Subscribers
+# -----------------------
 def get_subscribers():
-    """Fetch active subscribers from the API."""
     r = requests.get(API_URL)
     r.raise_for_status()
     return r.json()
 
 
+# -----------------------
+# Group by ZIP
+# -----------------------
 def group_by_zip(subscribers):
-    """Group subscribers by ZIP code."""
     grouped = defaultdict(list)
 
     for sub in subscribers:
@@ -25,6 +61,9 @@ def group_by_zip(subscribers):
     return grouped
 
 
+# -----------------------
+# Main Runner
+# -----------------------
 def main():
 
     subscribers = get_subscribers()
@@ -39,7 +78,6 @@ def main():
 
         weather = get_cached_weather(zip_code)
 
-        # Fetch pollen once per ZIP
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
 
@@ -55,8 +93,14 @@ def main():
 
             print("\n-----------------------")
             print(f"TO: {email}")
-            print(email_content)
-            print("-----------------------\n")
+            print("-----------------------")
+
+            # 🚀 SEND EMAIL HERE
+            send_email(
+                to_email=email,
+                subject="Your DailyPulseWatch Brief",
+                body=email_content
+            )
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from api.db import close_pool, get_conn
-
+from mailer.send_welcome import send_welcome_email
 
 # -----------------------
 # Request Models
@@ -111,6 +111,12 @@ def subscribe(
                 message = "subscribed"
 
         conn.commit()
+
+    # Send welcome email
+    try:
+        send_welcome_email(email, zip)
+    except Exception as e:
+        print(f"Welcome email error: {e}")
 
     return {"status": message, "email": email}
 
