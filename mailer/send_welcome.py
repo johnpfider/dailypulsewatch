@@ -25,6 +25,7 @@ def send_welcome_email(to_email: str, zip_code: str):
             pollen=pollen
         )
 
+        # ---------- TEXT VERSION (fallback) ----------
         body = f"""
 Welcome to DailyPulseWatch!
 
@@ -46,12 +47,51 @@ Stay sharp,
 DailyPulseWatch
 """
 
+        # ---------- HTML VERSION (pretty email) ----------
+        html_body = f"""
+<html>
+<body style="font-family: Arial, sans-serif; background-color:#f4f6f8; padding:20px;">
+    <div style="max-width:600px; margin:auto; background:white; padding:20px; border-radius:10px;">
+
+        <h2 style="color:#2c3e50;">Welcome to DailyPulseWatch 👋</h2>
+
+        <p>You're officially on the list.</p>
+
+        <p>
+        Starting today, you’ll receive a simple daily briefing designed to help you start your day with clarity.
+        </p>
+
+        <hr>
+
+        <h3 style="color:#2c3e50;">Your First DailyPulseWatch</h3>
+
+        <div style="background:#f9f9f9; padding:12px; border-radius:6px; font-family: monospace; white-space: pre-wrap;">
+{email_content}
+        </div>
+
+        <hr>
+
+        <p><strong>Built by a nurse, for nurses.</strong></p>
+
+        <p style="color:gray; font-size:12px;">
+        You’re receiving this because you signed up for DailyPulseWatch.
+        </p>
+
+    </div>
+</body>
+</html>
+"""
+
+        # ---------- SEND EMAIL ----------
         response = ses.send_email(
             Source=os.getenv("FROM_EMAIL"),
             Destination={"ToAddresses": [to_email]},
             Message={
                 "Subject": {"Data": "Welcome to DailyPulseWatch 🌅"},
-                "Body": {"Text": {"Data": body}},
+                "Body": {
+                    "Text": {"Data": body},   # fallback
+                    "Html": {"Data": html_body},  # pretty version
+                },
             },
         )
 
