@@ -1,6 +1,7 @@
 from mailer.weather_cache import get_cached_weather
 from mailer.content import build_email_content, fetch_pollen
 from api.geo import geocode_zip
+from mailer.horoscope import get_horoscopes
 import boto3
 import os
 
@@ -29,7 +30,14 @@ def format_sections(email_content: str):
         if not line:
             continue
 
-        if line in ["Weather", "Sun", "Commute Weather Watch", "Moon", "Quote", "Optional Horoscope"]:
+        if line in [
+            "Weather",
+            "Sun",
+            "Commute Weather Watch",
+            "Moon",
+            "Quote",
+            "Optional Horoscope",
+        ]:
             current_section = line
             sections[current_section] = []
             continue
@@ -47,9 +55,10 @@ def format_sections(email_content: str):
 # SEND WELCOME EMAIL
 # =========================
 def send_welcome_email(to_email: str, zip_code: str, horoscope: str = None):
-
     try:
-        # Build core data
+        # -------------------------------
+        # BUILD CORE DATA
+        # -------------------------------
         weather = get_cached_weather(zip_code)
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
@@ -57,25 +66,29 @@ def send_welcome_email(to_email: str, zip_code: str, horoscope: str = None):
         email_content = build_email_content(
             zip_code=zip_code,
             weather=weather,
-            pollen=pollen
+            pollen=pollen,
         )
 
-        # =========================
-        # ADD HOROSCOPE SECTION
-        # =========================
+        # -------------------------------
+        # HOROSCOPE (BATCH STYLE + CACHE)
+        # -------------------------------
         if horoscope:
+            horoscope_map = get_horoscopes({horoscope})
+            horoscope_text = horoscope_map.get(horoscope.lower(), "")
+
             email_content += f"""
 
 Optional Horoscope
 ------------------
-{horoscope}
+{horoscope.title()}
+{horoscope_text}
 """
 
         sections = format_sections(email_content)
 
-        # =========================
+        # -------------------------------
         # HOROSCOPE HTML BLOCK
-        # =========================
+        # -------------------------------
         if sections.get("Optional Horoscope"):
             horoscope_html = f"""
             <div style="
@@ -92,9 +105,9 @@ Optional Horoscope
         else:
             horoscope_html = ""
 
-        # =========================
+        # -------------------------------
         # TEXT VERSION
-        # =========================
+        # -------------------------------
         text_body = f"""
 Welcome to DailyPulseWatch!
 
@@ -111,9 +124,9 @@ Here’s your first DailyPulseWatch:
 Built by a nurse, for nurses.
 """
 
-        # =========================
+        # -------------------------------
         # HTML VERSION
-        # =========================
+        # -------------------------------
         html_body = f"""
 <html>
 <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:20px;">
@@ -175,9 +188,9 @@ Starting today, you’ll receive a simple daily briefing designed to help you st
 </html>
 """
 
-        # =========================
+        # -------------------------------
         # SEND EMAIL
-        # =========================
+        # -------------------------------
         ses.send_email(
             Source=os.getenv("FROM_EMAIL"),
             Destination={"ToAddresses": [to_email]},
