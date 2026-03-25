@@ -29,8 +29,7 @@ def format_sections(email_content: str):
         if not line:
             continue
 
-        # Detect section headers
-        if line in ["Weather", "Sun", "Commute Weather Watch", "Moon", "Quote"]:
+        if line in ["Weather", "Sun", "Commute Weather Watch", "Moon", "Quote", "Optional Horoscope"]:
             current_section = line
             sections[current_section] = []
             continue
@@ -50,9 +49,6 @@ def format_sections(email_content: str):
 def send_welcome_email(to_email: str, zip_code: str):
 
     try:
-        # -------------------------------
-        # BUILD DATA
-        # -------------------------------
         weather = get_cached_weather(zip_code)
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
@@ -66,7 +62,26 @@ def send_welcome_email(to_email: str, zip_code: str):
         sections = format_sections(email_content)
 
         # -------------------------------
-        # TEXT VERSION (fallback)
+        # ✅ FIXED: Build horoscope OUTSIDE HTML
+        # -------------------------------
+        if sections.get("Optional Horoscope"):
+            horoscope_html = f"""
+            <div style="
+              margin-top:20px;
+              padding:18px;
+              border:1px solid #E5E7EB;
+              border-radius:14px;
+              box-shadow:0 4px 10px rgba(0,0,0,0.06);
+            ">
+              <h4 style="margin-top:0;">Optional Horoscope</h4>
+              <p>{"<br>".join(sections.get("Optional Horoscope", []))}</p>
+            </div>
+            """
+        else:
+            horoscope_html = ""
+
+        # -------------------------------
+        # TEXT VERSION
         # -------------------------------
         text_body = f"""
 Welcome to DailyPulseWatch!
@@ -85,7 +100,7 @@ Built by a nurse, for nurses.
 """
 
         # -------------------------------
-        # HTML VERSION (🔥 CLEAN UI)
+        # HTML VERSION
         # -------------------------------
         html_body = f"""
 <html>
@@ -111,15 +126,12 @@ Starting today, you’ll receive a simple daily briefing designed to help you st
 
 <h3 style="margin-top:24px;">Your First DailyPulseWatch</h3>
 
-<!-- WEATHER -->
 <h4>Weather</h4>
 <p>{"<br>".join(sections.get("Weather", []))}</p>
 
-<!-- SUN -->
 <h4>Sun</h4>
 <p>{"<br>".join(sections.get("Sun", []))}</p>
 
-<!-- COMMUTE -->
 <div style="
   margin-top:16px;
   padding:18px;
@@ -131,15 +143,14 @@ Starting today, you’ll receive a simple daily briefing designed to help you st
   <p>{"<br>".join(sections.get("Commute Weather Watch", []))}</p>
 </div>
 
-<!-- MOON -->
 <h4 style="margin-top:20px;">Moon</h4>
 <p>{"<br>".join(sections.get("Moon", []))}</p>
 
-<!-- QUOTE -->
+{horoscope_html}
+
 <h4 style="margin-top:20px;">Quote</h4>
 <p>{"<br>".join(sections.get("Quote", []))}</p>
 
-<!-- FOOTER -->
 <div style="margin-top:24px;">
   <p><strong>Built by a nurse, for nurses.</strong></p>
   <p style="color:#6B7280; font-size:12px;">
@@ -152,9 +163,6 @@ Starting today, you’ll receive a simple daily briefing designed to help you st
 </html>
 """
 
-        # -------------------------------
-        # SEND EMAIL
-        # -------------------------------
         ses.send_email(
             Source=os.getenv("FROM_EMAIL"),
             Destination={"ToAddresses": [to_email]},
