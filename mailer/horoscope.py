@@ -4,13 +4,13 @@ from pathlib import Path
 from datetime import date
 
 # =========================
-# FILE
+# FILE PATH
 # =========================
 CACHE_FILE = Path(__file__).resolve().parents[1] / "data" / "horoscope_cache.json"
 
 
 # =========================
-# FETCH FROM API (NURSEALERT SOURCE)
+# FETCH FROM API (SAFE)
 # =========================
 def fetch_horoscope(sign: str) -> str:
     url = "https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily"
@@ -22,7 +22,18 @@ def fetch_horoscope(sign: str) -> str:
     )
     r.raise_for_status()
 
-    return r.json()["data"]["horoscope_data"]
+    data = r.json()
+
+    # 🔒 SAFE PARSING (prevents 'horoscope_data' crash)
+    if isinstance(data, dict):
+        if "data" in data and isinstance(data["data"], dict):
+            return (
+                data["data"].get("horoscope_data")
+                or data["data"].get("horoscope")
+                or ""
+            )
+
+    return ""
 
 
 # =========================
@@ -61,8 +72,11 @@ def get_horoscopes(signs: set[str]) -> dict[str, str]:
         if key in cache and cache[key]["date"] == today:
             results[key] = cache[key]["text"]
         else:
-            # Fetch fresh
-            text = fetch_horoscope(key)
+            try:
+                text = fetch_horoscope(key)
+            except Exception as e:
+                print(f"❌ Horoscope fetch failed for {key}: {e}")
+                text = ""
 
             cache[key] = {
                 "date": today,
