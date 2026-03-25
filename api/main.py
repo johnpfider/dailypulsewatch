@@ -114,7 +114,7 @@ def subscribe(
 
     # Send welcome email
     try:
-        send_welcome_email(email, zip)
+        send_welcome_email(email, zip, horoscope)
     except Exception as e:
         print(f"Welcome email error: {e}")
 

@@ -46,9 +46,10 @@ def format_sections(email_content: str):
 # =========================
 # SEND WELCOME EMAIL
 # =========================
-def send_welcome_email(to_email: str, zip_code: str):
+def send_welcome_email(to_email: str, zip_code: str, horoscope: str = None):
 
     try:
+        # Build core data
         weather = get_cached_weather(zip_code)
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
@@ -59,11 +60,22 @@ def send_welcome_email(to_email: str, zip_code: str):
             pollen=pollen
         )
 
+        # =========================
+        # ADD HOROSCOPE SECTION
+        # =========================
+        if horoscope:
+            email_content += f"""
+
+Optional Horoscope
+------------------
+{horoscope}
+"""
+
         sections = format_sections(email_content)
 
-        # -------------------------------
-        # ✅ FIXED: Build horoscope OUTSIDE HTML
-        # -------------------------------
+        # =========================
+        # HOROSCOPE HTML BLOCK
+        # =========================
         if sections.get("Optional Horoscope"):
             horoscope_html = f"""
             <div style="
@@ -80,9 +92,9 @@ def send_welcome_email(to_email: str, zip_code: str):
         else:
             horoscope_html = ""
 
-        # -------------------------------
+        # =========================
         # TEXT VERSION
-        # -------------------------------
+        # =========================
         text_body = f"""
 Welcome to DailyPulseWatch!
 
@@ -99,9 +111,9 @@ Here’s your first DailyPulseWatch:
 Built by a nurse, for nurses.
 """
 
-        # -------------------------------
+        # =========================
         # HTML VERSION
-        # -------------------------------
+        # =========================
         html_body = f"""
 <html>
 <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:20px;">
@@ -163,6 +175,9 @@ Starting today, you’ll receive a simple daily briefing designed to help you st
 </html>
 """
 
+        # =========================
+        # SEND EMAIL
+        # =========================
         ses.send_email(
             Source=os.getenv("FROM_EMAIL"),
             Destination={"ToAddresses": [to_email]},
