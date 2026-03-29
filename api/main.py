@@ -99,14 +99,24 @@ def subscribe(
 
             if row:
                 cur.execute(
-                    "UPDATE subscribers SET is_active = TRUE WHERE email = %s",
-                    (email,)
+                    """
+                    UPDATE subscribers
+                    SET is_active = TRUE,
+                        zip = %s,
+                        horoscope = %s
+                    WHERE email = %s
+                    """,
+                    (zip, horoscope, email)
                 )
                 message = "reactivated"
+
             else:
                 cur.execute(
-                    "INSERT INTO subscribers (email, zip, is_active) VALUES (%s, %s, TRUE)",
-                    (email, zip)
+                    """
+                    INSERT INTO subscribers (email, zip, horoscope, is_active)
+                    VALUES (%s, %s, %s, TRUE)
+                    """,
+                    (email, zip, horoscope)
                 )
                 message = "subscribed"
 
