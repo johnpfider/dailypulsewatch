@@ -1,16 +1,12 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Form
 from pydantic import BaseModel
 from api.db import close_pool, get_conn
 from mailer.send_welcome import send_welcome_email
 
+
 # -----------------------
 # Request Models
 # -----------------------
-
-class SubscribeRequest(BaseModel):
-    email: str
-    zip: str
-
 
 class UnsubscribeRequest(BaseModel):
     email: str
@@ -58,6 +54,7 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS subscribers (
                     email TEXT PRIMARY KEY,
                     zip TEXT NOT NULL,
+                    horoscope TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     is_active BOOLEAN DEFAULT TRUE
                 );
@@ -70,8 +67,6 @@ def init_db():
 # Subscribe
 # -----------------------
 
-from fastapi import Form
-
 @app.post("/subscribe")
 def subscribe(
     email: str = Form(...),
@@ -81,8 +76,9 @@ def subscribe(
 
     from api.geo import geocode_zip
 
-    print("Incoming:", email, zip, horoscope)  # 👈 DEBUG
+    print("Incoming:", email, zip, horoscope)
 
+    # Validate ZIP
     try:
         lat, lon = geocode_zip(zip)
     except Exception:
@@ -91,13 +87,15 @@ def subscribe(
     with get_conn() as conn:
         with conn.cursor() as cur:
 
+            # Check if user exists
             cur.execute(
-                "SELECT email, is_active FROM subscribers WHERE email = %s",
+                "SELECT email FROM subscribers WHERE email = %s",
                 (email,)
             )
             row = cur.fetchone()
 
             if row:
+                # Reactivate + update info
                 cur.execute(
                     """
                     UPDATE subscribers
@@ -111,6 +109,7 @@ def subscribe(
                 message = "reactivated"
 
             else:
+                # Insert new user
                 cur.execute(
                     """
                     INSERT INTO subscribers (email, zip, horoscope, is_active)
@@ -130,6 +129,7 @@ def subscribe(
 
     return {"status": message, "email": email}
 
+
 # -----------------------
 # Unsubscribe
 # -----------------------
@@ -146,6 +146,7 @@ def unsubscribe(req: UnsubscribeRequest):
 
     return {"status": "unsubscribed", "email": req.email}
 
+
 # -----------------------
 # Get All Subscribers
 # -----------------------
@@ -155,9 +156,8 @@ def get_all_subscribers():
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT email, zip FROM subscribers WHERE is_active = TRUE"
+                "SELECT email, zip, horoscope FROM subscribers WHERE is_active = TRUE"
             )
-
             rows = cur.fetchall()
 
     subscribers = []
@@ -165,10 +165,12 @@ def get_all_subscribers():
     for row in rows:
         subscribers.append({
             "email": row[0],
-            "zip": row[1]
+            "zip": row[1],
+            "horoscope": row[2]
         })
 
     return subscribers
+
 
 # -----------------------
 # Subscriber Count
@@ -179,13 +181,13 @@ def subscriber_count():
     with get_conn() as conn:
         with conn.cursor() as cur:
 
-            # active subscribers
+            # Active subscribers
             cur.execute(
                 "SELECT COUNT(*) FROM subscribers WHERE is_active = TRUE"
             )
             active = cur.fetchone()[0]
 
-            # total subscribers ever
+            # Total subscribers ever
             cur.execute(
                 "SELECT COUNT(*) FROM subscribers"
             )
@@ -195,6 +197,7 @@ def subscriber_count():
         "active_subscribers": active,
         "total_subscribers": total
     }
+
 
 # -----------------------
 # Shutdown Cleanup

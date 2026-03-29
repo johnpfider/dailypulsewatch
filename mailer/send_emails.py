@@ -6,6 +6,7 @@ import os
 from mailer.weather_cache import get_cached_weather
 from mailer.content import build_email_content, fetch_pollen
 from api.geo import geocode_zip
+from mailer.horoscope import get_horoscopes   # ✅ NEW
 
 API_URL = "https://dailypulsewatch.onrender.com/subscribers"
 
@@ -76,11 +77,28 @@ def main():
 
         print(f"\nProcessing ZIP: {zip_code}")
 
+        # -----------------------
+        # SHARED DATA (per ZIP)
+        # -----------------------
         weather = get_cached_weather(zip_code)
 
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
 
+        # -----------------------
+        # 🧠 COLLECT HOROSCOPES (BATCH)
+        # -----------------------
+        signs = set(
+            user["horoscope"]
+            for user in users
+            if user.get("horoscope")
+        )
+
+        horoscope_map = get_horoscopes(signs) if signs else {}
+
+        # -----------------------
+        # SEND EMAILS
+        # -----------------------
         for user in users:
 
             email = user["email"]
@@ -91,11 +109,25 @@ def main():
                 pollen=pollen
             )
 
+            # -----------------------
+            # 🔮 ADD HOROSCOPE
+            # -----------------------
+            if user.get("horoscope"):
+                sign = user["horoscope"].lower()
+
+                horoscope_text = f"""
+
+Horoscope
+---------
+{user['horoscope'].title()}
+{horoscope_map.get(sign, "")}
+"""
+                email_content += horoscope_text
+
             print("\n-----------------------")
             print(f"TO: {email}")
             print("-----------------------")
 
-            # 🚀 SEND EMAIL HERE
             send_email(
                 to_email=email,
                 subject="Your DailyPulseWatch Brief",
