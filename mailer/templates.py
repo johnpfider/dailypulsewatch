@@ -1,17 +1,19 @@
 # ============================================================
-# DailyPulseWatch — Email Template
+# DailyPulseWatch — Email Template (HTML)
 # ============================================================
 
 def build_email(moon, weather, horoscopes, quote):
 
+    # -----------------------
+    # WEATHER SUMMARY
+    # -----------------------
     weather_line = (
-        f"High of {weather.high_f}°F, low of {weather.low_f}°F. "
-        "Mostly clear with no precipitation expected."
-        if weather.precip_mm == 0
-        else
-        f"High of {weather.high_f}°F, low of {weather.low_f}°F. Precipitation expected."
+        f"High: {weather.high_f}°F<br/>Low: {weather.low_f}°F"
     )
 
+    # -----------------------
+    # COMMUTE LOGIC
+    # -----------------------
     if weather.freezing and weather.precip_mm == 0:
         commute_line = "Cold temperatures are present, but dry conditions reduce the risk of slick roads."
         ice_risk = "Low"
@@ -27,66 +29,116 @@ def build_email(moon, weather, horoscopes, quote):
 
     commute_details_html = ""
     if weather.freezing:
+        precip_in = round(weather.precip_mm * 0.03937, 2)
+
         commute_details_html = f"""
-          <div style="border-top:1px solid #E5E7EB; padding-top:10px;">
+        <div style="border-top:1px solid #E5E7EB; padding-top:10px; margin-top:10px;">
             <p style="margin:0;">
-              <strong>Precipitation:</strong> {round(weather.precip_mm * 0.03937, 2)} in<br/>
-              <strong>Black Ice Risk:</strong> {ice_risk}
+                <strong>Precipitation:</strong> {precip_in} in<br/>
+                <strong>Black Ice Risk:</strong> {ice_risk}
             </p>
             <p style="margin-top:8px;">{ice_text}</p>
-          </div>
+        </div>
         """
 
+    # -----------------------
+    # HOROSCOPE BLOCK
+    # -----------------------
     horoscope_html = ""
     if horoscopes:
         items = "".join(
-            f"<p><strong>{sign}</strong><br/>{text}</p>"
+            f"<p><strong>{sign.title()}</strong><br/>{text}</p>"
             for sign, text in horoscopes.items()
             if text
         )
+
         horoscope_html = f"""
-        <div style="margin-top:20px; padding:18px; border:1px solid #E5E7EB;
-        border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,0.06);">
-          <h3>Optional Horoscope</h3>
-          {items}
+        <div style="
+            margin-top:20px;
+            padding:18px;
+            border:1px solid #E5E7EB;
+            border-radius:14px;
+            box-shadow:0 4px 10px rgba(0,0,0,0.06);
+        ">
+            <h4 style="margin-top:0;">🔮 Optional Horoscope</h4>
+            {items}
         </div>
         """
 
+    # -----------------------
+    # HTML TEMPLATE
+    # -----------------------
     html = f"""
     <html>
     <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:20px;">
-      <div style="max-width:640px; margin:auto; background:#FFFFFF; padding:24px;
-      border-radius:16px; border:1px solid #E5E7EB;
-      box-shadow:0 10px 24px rgba(0,0,0,0.08);">
 
-        <h2>Daily Pulse Watch</h2>
-        <p>Here’s your daily heads-up to help you prepare for the day ahead.</p>
+        <div style="
+            max-width:640px;
+            margin:auto;
+            background:#FFFFFF;
+            padding:24px;
+            border-radius:16px;
+            border:1px solid #E5E7EB;
+            box-shadow:0 10px 24px rgba(0,0,0,0.08);
+        ">
 
-        <h3>Weather (Next 24 Hours)</h3>
-        <p>{weather_line}</p>
+            <h2 style="margin-top:0;">🌅 DailyPulseWatch</h2>
 
-        <div style="margin-top:16px; padding:18px; background:#F9FAFB;
-        border:1px solid #E5E7EB; border-radius:14px;">
-          <h3 style="margin-top:0;">Commute Weather Watch</h3>
-          <p>{commute_line}</p>
-          {commute_details_html}
+            <p>
+                Here’s your daily briefing to help you start your day with clarity.
+            </p>
+
+            <!-- WEATHER -->
+            <h4>🌤 Weather</h4>
+            <p>{weather_line}</p>
+
+            <!-- SUN -->
+            <h4>🌅 Sun</h4>
+            <p>
+                Sunrise: {weather.sunrise}<br/>
+                Sunset: {weather.sunset}
+            </p>
+
+            <!-- COMMUTE -->
+            <div style="
+                margin-top:16px;
+                padding:18px;
+                background:#F9FAFB;
+                border:1px solid #E5E7EB;
+                border-radius:14px;
+            ">
+                <h4 style="margin-top:0;">🚗 Commute Weather Watch</h4>
+                <p>{commute_line}</p>
+                {commute_details_html}
+            </div>
+
+            <!-- MOON -->
+            <h4 style="margin-top:20px;">🌙 Moon</h4>
+            <p>
+                <strong>{moon.phase}</strong><br/>
+                <em>{moon.meaning}</em>
+            </p>
+
+            <!-- HOROSCOPE -->
+            {horoscope_html}
+
+            <!-- QUOTE -->
+            <h4 style="margin-top:20px;">💬 Quote</h4>
+            <p>
+                “{quote.get('text','')}”<br/>
+                — {quote.get('author','')}
+            </p>
+
+            <!-- FOOTER -->
+            <div style="margin-top:24px;">
+                <p><strong>Built by a nurse, for nurses.</strong></p>
+                <p style="color:#6B7280; font-size:12px;">
+                    You’re receiving this because you signed up for DailyPulseWatch.
+                </p>
+            </div>
+
         </div>
 
-        <h3>Moon</h3>
-        <p><strong>{moon.phase}</strong><br/><em>{moon.meaning}</em></p>
-
-        {horoscope_html}
-
-        <h3>Today’s Encouragement</h3>
-        <blockquote style="font-style:italic;">
-          “{quote['text']}”
-          <br/>— {quote['author']}
-        </blockquote>
-
-        <hr/>
-        <p style="font-size:12px;">To unsubscribe, reply STOP.</p>
-
-      </div>
     </body>
     </html>
     """
