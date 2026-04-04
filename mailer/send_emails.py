@@ -4,9 +4,10 @@ import boto3
 import os
 
 from mailer.weather_cache import get_cached_weather
-from mailer.content import build_email_content, fetch_pollen
+from mailer.content import compute_moon, todays_quote, fetch_pollen
+from mailer.templates import build_email
 from api.geo import geocode_zip
-from mailer.horoscope import get_horoscopes   # ✅ NEW
+from mailer.horoscope import get_horoscopes
 
 API_URL = "https://dailypulsewatch.onrender.com/subscribers"
 
@@ -21,8 +22,8 @@ ses = boto3.client(
 )
 
 
-def send_email(to_email, subject, body):
-    """Send email via Amazon SES"""
+def send_email(to_email, subject, html_body):
+    """Send HTML email via Amazon SES"""
     try:
         response = ses.send_email(
             Source=os.getenv("FROM_EMAIL"),
@@ -30,7 +31,7 @@ def send_email(to_email, subject, body):
             Message={
                 "Subject": {"Data": subject},
                 "Body": {
-                    "Text": {"Data": body}
+                    "Html": {"Data": html_body}
                 },
             },
         )
@@ -85,6 +86,9 @@ def main():
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
 
+        moon = compute_moon()
+        quote = todays_quote()
+
         # -----------------------
         # 🧠 COLLECT HOROSCOPES (BATCH)
         # -----------------------
@@ -103,26 +107,18 @@ def main():
 
             email = user["email"]
 
-            email_content = build_email_content(
-                zip_code=zip_code,
-                weather=weather,
-                pollen=pollen
-            )
+            user_horoscopes = {}
 
-            # -----------------------
-            # 🔮 ADD HOROSCOPE
-            # -----------------------
             if user.get("horoscope"):
                 sign = user["horoscope"].lower()
+                user_horoscopes[sign] = horoscope_map.get(sign, "")
 
-                horoscope_text = f"""
-
-Horoscope
----------
-{user['horoscope'].title()}
-{horoscope_map.get(sign, "")}
-"""
-                email_content += horoscope_text
+            html_content = build_email(
+                moon=moon,
+                weather=weather,
+                horoscopes=user_horoscopes,
+                quote=quote,
+            )
 
             print("\n-----------------------")
             print(f"TO: {email}")
@@ -131,7 +127,7 @@ Horoscope
             send_email(
                 to_email=email,
                 subject="Your DailyPulseWatch Brief",
-                body=email_content
+                html_body=html_content
             )
 
 

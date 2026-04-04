@@ -92,7 +92,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
         "timezone": "auto",
     }
 
-    r = requests.get(url, params=params, timeout=10)
+    r = requests.get(url, params=params, timeout=5)
     r.raise_for_status()
 
     d = r.json()["daily"]
@@ -145,7 +145,7 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
         "timezone": "auto"
     }
 
-    r = requests.get(url, params=params, timeout=10)
+    r = requests.get(url, params=params, timeout=5)
     r.raise_for_status()
 
     data = r.json().get("hourly", {})

@@ -5,41 +5,50 @@
 def build_email(moon, weather, horoscopes, quote):
 
     # -----------------------
-    # WEATHER SUMMARY
+    # WEATHER SUMMARY (UPDATED)
     # -----------------------
-    weather_line = (
-        f"High: {weather.high_f}°F<br/>Low: {weather.low_f}°F"
-    )
-
-    # -----------------------
-    # COMMUTE LOGIC
-    # -----------------------
-    if weather.freezing and weather.precip_mm == 0:
-        commute_line = "Cold temperatures are present, but dry conditions reduce the risk of slick roads."
-        ice_risk = "Low"
-        ice_text = "Freezing temperatures are present, but without precipitation, black ice is unlikely."
-    elif weather.freezing and weather.precip_mm > 0:
-        commute_line = "Cold temperatures combined with precipitation may make the commute more hazardous."
-        ice_risk = "Elevated"
-        ice_text = "Freezing temperatures and moisture mean black ice could form on untreated surfaces."
+    if getattr(weather, "unavailable", False):
+        weather_line = "Weather data is temporarily unavailable."
+        sunrise = "—"
+        sunset = "—"
     else:
-        commute_line = "No major weather-related commute concerns."
-        ice_risk = "None"
-        ice_text = "Temperatures are above freezing."
+        weather_line = f"High: {weather.high_f}°F<br/>Low: {weather.low_f}°F"
+        sunrise = weather.sunrise
+        sunset = weather.sunset
 
-    commute_details_html = ""
-    if weather.freezing:
-        precip_in = round(weather.precip_mm * 0.03937, 2)
+    # -----------------------
+    # COMMUTE LOGIC (SAFEGUARD)
+    # -----------------------
+    if getattr(weather, "unavailable", False):
+        commute_line = "Commute conditions unavailable due to missing weather data."
+        commute_details_html = ""
+    else:
+        if weather.freezing and weather.precip_mm == 0:
+            commute_line = "Cold temperatures are present, but dry conditions reduce the risk of slick roads."
+            ice_risk = "Low"
+            ice_text = "Freezing temperatures are present, but without precipitation, black ice is unlikely."
+        elif weather.freezing and weather.precip_mm > 0:
+            commute_line = "Cold temperatures combined with precipitation may make the commute more hazardous."
+            ice_risk = "Elevated"
+            ice_text = "Freezing temperatures and moisture mean black ice could form on untreated surfaces."
+        else:
+            commute_line = "No major weather-related commute concerns."
+            ice_risk = "None"
+            ice_text = "Temperatures are above freezing."
 
-        commute_details_html = f"""
-        <div style="border-top:1px solid #E5E7EB; padding-top:10px; margin-top:10px;">
-            <p style="margin:0;">
-                <strong>Precipitation:</strong> {precip_in} in<br/>
-                <strong>Black Ice Risk:</strong> {ice_risk}
-            </p>
-            <p style="margin-top:8px;">{ice_text}</p>
-        </div>
-        """
+        commute_details_html = ""
+        if weather.freezing:
+            precip_in = round(weather.precip_mm * 0.03937, 2)
+
+            commute_details_html = f"""
+            <div style="border-top:1px solid #E5E7EB; padding-top:10px; margin-top:10px;">
+                <p style="margin:0;">
+                    <strong>Precipitation:</strong> {precip_in} in<br/>
+                    <strong>Black Ice Risk:</strong> {ice_risk}
+                </p>
+                <p style="margin-top:8px;">{ice_text}</p>
+            </div>
+            """
 
     # -----------------------
     # HOROSCOPE BLOCK
@@ -95,8 +104,8 @@ def build_email(moon, weather, horoscopes, quote):
             <!-- SUN -->
             <h4>🌅 Sun</h4>
             <p>
-                Sunrise: {weather.sunrise}<br/>
-                Sunset: {weather.sunset}
+                Sunrise: {sunrise}<br/>
+                Sunset: {sunset}
             </p>
 
             <!-- COMMUTE -->
