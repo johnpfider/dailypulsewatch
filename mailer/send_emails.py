@@ -84,7 +84,6 @@ def main():
         weather = get_cached_weather(zip_code)
 
         lat, lon = geocode_zip(zip_code)
-        pollen = fetch_pollen(lat, lon)
 
         moon = compute_moon()
         quote = todays_quote()
@@ -118,7 +117,7 @@ def main():
                 weather=weather,
                 horoscopes=user_horoscopes,
                 quote=quote,
-                user_email=email   # 👈 NEW
+                user_email=email
             )
 
             print("\n-----------------------")

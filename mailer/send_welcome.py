@@ -1,5 +1,5 @@
 from mailer.weather_cache import get_cached_weather
-from mailer.content import build_email_content, fetch_pollen
+from mailer.content import compute_moon, todays_quote, fetch_pollen
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
 import boto3
@@ -17,193 +17,170 @@ ses = boto3.client(
 )
 
 
-# =========================
-# SECTION PARSER
-# =========================
-def format_sections(email_content: str):
-    sections = {}
-    current_section = None
+def send_welcome_email(email, zip_code, horoscope):
 
-    for line in email_content.splitlines():
-        line = line.strip()
-
-        if not line:
-            continue
-
-        if line in [
-            "Weather",
-            "Sun",
-            "Commute Weather Watch",
-            "Moon",
-            "Quote",
-            "Optional Horoscope",
-        ]:
-            current_section = line
-            sections[current_section] = []
-            continue
-
-        if line.startswith("---"):
-            continue
-
-        if current_section:
-            sections[current_section].append(line)
-
-    return sections
-
-
-# =========================
-# SEND WELCOME EMAIL
-# =========================
-def send_welcome_email(to_email: str, zip_code: str, horoscope: str = None):
     try:
-        # -------------------------------
-        # BUILD CORE DATA
-        # -------------------------------
+        # -----------------------
+        # DATA
+        # -----------------------
         weather = get_cached_weather(zip_code)
+
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
 
-        email_content = build_email_content(
-            zip_code=zip_code,
-            weather=weather,
-            pollen=pollen,
-        )
+        moon = compute_moon()
+        quote = todays_quote()
 
-        # -------------------------------
-        # HOROSCOPE (BATCH STYLE + CACHE)
-        # -------------------------------
+        horoscope_map = {}
         if horoscope:
-            horoscope_map = get_horoscopes({horoscope})
-            horoscope_text = horoscope_map.get(horoscope.lower(), "")
+            horoscope_map = get_horoscopes({horoscope.lower()})
 
-            email_content += f"""
+        # -----------------------
+        # WEATHER SAFETY
+        # -----------------------
+        if getattr(weather, "unavailable", False):
+            weather_line = "Weather data is temporarily unavailable."
+            sunrise = "—"
+            sunset = "—"
+        else:
+            weather_line = f"High: {weather.high_f}°F<br/>Low: {weather.low_f}°F"
+            sunrise = weather.sunrise
+            sunset = weather.sunset
 
-Optional Horoscope
-------------------
-{horoscope.title()}
-{horoscope_text}
-"""
+        # -----------------------
+        # COMMUTE (simple version)
+        # -----------------------
+        commute_line = "No major weather-related commute concerns."
 
-        sections = format_sections(email_content)
+        # -----------------------
+        # HOROSCOPE BLOCK
+        # -----------------------
+        horoscope_html = ""
+        if horoscope and horoscope_map:
+            sign = horoscope.lower()
 
-        # -------------------------------
-        # HOROSCOPE HTML BLOCK
-        # -------------------------------
-        if sections.get("Optional Horoscope"):
             horoscope_html = f"""
             <div style="
-              margin-top:20px;
-              padding:18px;
-              border:1px solid #E5E7EB;
-              border-radius:14px;
-              box-shadow:0 4px 10px rgba(0,0,0,0.06);
+                margin-top:24px;
+                padding:18px;
+                border:1px solid #E5E7EB;
+                border-radius:14px;
+                box-shadow:0 6px 14px rgba(0,0,0,0.08);
             ">
-              <h4 style="margin-top:0;">Optional Horoscope</h4>
-              <p>{"<br>".join(sections.get("Optional Horoscope", []))}</p>
+                <h4 style="margin-top:0;">🔮 Optional Horoscope</h4>
+                <p><strong>{horoscope.title()}</strong><br/>{horoscope_map.get(sign, "")}</p>
             </div>
             """
-        else:
-            horoscope_html = ""
 
-        # -------------------------------
-        # TEXT VERSION
-        # -------------------------------
-        text_body = f"""
-Welcome to DailyPulseWatch!
+        # -----------------------
+        # UNSUBSCRIBE LINK
+        # -----------------------
+        unsubscribe_link = f"https://dailypulsewatch.onrender.com/unsubscribe?email={email}"
 
-You're officially on the list.
+        # -----------------------
+        # HTML (MATCHES TEMPLATE STYLE)
+        # -----------------------
+        html = f"""
+        <html>
+        <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:20px;">
 
-Starting today, you’ll receive a simple daily briefing designed to help you start your day with clarity.
+            <div style="
+                max-width:640px;
+                margin:auto;
+                background:#FFFFFF;
+                padding:28px;
+                border-radius:18px;
+                border:1px solid #E5E7EB;
+                box-shadow:0 12px 28px rgba(0,0,0,0.12);
+            ">
 
-Here’s your first DailyPulseWatch:
+                <h2 style="margin-top:0;">👋 Welcome to DailyPulseWatch</h2>
 
-----------------------------------------
-{email_content}
-----------------------------------------
+                <p>
+                    You're officially on the list.
+                </p>
 
-Built by a nurse, for nurses.
-"""
+                <p style="margin-bottom:20px;">
+                    Starting today, you'll receive a simple daily briefing designed to help you start your day with clarity.
+                </p>
 
-        # -------------------------------
-        # HTML VERSION
-        # -------------------------------
-        html_body = f"""
-<html>
-<body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:20px;">
+                <h4 style="margin-top:20px;">🌤 Weather</h4>
+                <p>{weather_line}</p>
 
-<div style="
-  max-width:640px;
-  margin:auto;
-  background:#FFFFFF;
-  padding:24px;
-  border-radius:16px;
-  border:1px solid #E5E7EB;
-  box-shadow:0 10px 24px rgba(0,0,0,0.08);
-">
+                <h4 style="margin-top:20px;">🌅 Sun</h4>
+                <p>
+                    Sunrise: {sunrise}<br/>
+                    Sunset: {sunset}
+                </p>
 
-<h2 style="margin-top:0;">Welcome to DailyPulseWatch 👋</h2>
+                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-<p>You're officially on the list.</p>
+                <div style="
+                    margin-top:10px;
+                    padding:18px;
+                    background:#F9FAFB;
+                    border:1px solid #E5E7EB;
+                    border-radius:14px;
+                ">
+                    <h4 style="margin-top:0;">🚗 Commute Weather Watch</h4>
+                    <p>{commute_line}</p>
+                </div>
 
-<p>
-Starting today, you’ll receive a simple daily briefing designed to help you start your day with clarity.
-</p>
+                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-<h3 style="margin-top:24px;">Your First DailyPulseWatch</h3>
+                <h4>🌙 Moon</h4>
+                <p>
+                    <strong>{moon.phase}</strong><br/>
+                    <em>{moon.meaning}</em>
+                </p>
 
-<h4>Weather</h4>
-<p>{"<br>".join(sections.get("Weather", []))}</p>
+                {horoscope_html}
 
-<h4>Sun</h4>
-<p>{"<br>".join(sections.get("Sun", []))}</p>
+                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-<div style="
-  margin-top:16px;
-  padding:18px;
-  background:#F9FAFB;
-  border:1px solid #E5E7EB;
-  border-radius:14px;
-">
-  <h4 style="margin-top:0;">Commute Weather Watch</h4>
-  <p>{"<br>".join(sections.get("Commute Weather Watch", []))}</p>
-</div>
+                <h4>💬 Quote</h4>
+                <p>
+                    “{quote.get('text','')}”<br/>
+                    — {quote.get('author','')}
+                </p>
 
-<h4 style="margin-top:20px;">Moon</h4>
-<p>{"<br>".join(sections.get("Moon", []))}</p>
+                <!-- FOOTER -->
+                <div style="margin-top:28px;">
+                    <p><strong>Built by a nurse, for nurses.</strong></p>
 
-{horoscope_html}
+                    <p style="color:#6B7280; font-size:12px;">
+                        You’re receiving this because you signed up for DailyPulseWatch.
+                    </p>
 
-<h4 style="margin-top:20px;">Quote</h4>
-<p>{"<br>".join(sections.get("Quote", []))}</p>
+                    <p style="margin-top:10px; font-size:12px;">
+                        <a href="{unsubscribe_link}"
+                           style="color:#2563EB; text-decoration:none;">
+                           Unsubscribe
+                        </a>
+                    </p>
+                </div>
 
-<div style="margin-top:24px;">
-  <p><strong>Built by a nurse, for nurses.</strong></p>
-  <p style="color:#6B7280; font-size:12px;">
-    You’re receiving this because you signed up for DailyPulseWatch.
-  </p>
-</div>
+            </div>
 
-</div>
-</body>
-</html>
-"""
+        </body>
+        </html>
+        """
 
-        # -------------------------------
+        # -----------------------
         # SEND EMAIL
-        # -------------------------------
+        # -----------------------
         ses.send_email(
             Source=os.getenv("FROM_EMAIL"),
-            Destination={"ToAddresses": [to_email]},
+            Destination={"ToAddresses": [email]},
             Message={
-                "Subject": {"Data": "Welcome to DailyPulseWatch 🌅"},
+                "Subject": {"Data": "Welcome to DailyPulseWatch"},
                 "Body": {
-                    "Text": {"Data": text_body},
-                    "Html": {"Data": html_body},
+                    "Html": {"Data": html}
                 },
             },
         )
 
-        print(f"✅ Welcome + first brief sent to {to_email}")
+        print(f"✅ Welcome email sent to {email}")
 
     except Exception as e:
-        print(f"❌ Welcome email failed for {to_email}: {e}")
+        print(f"❌ Failed to send welcome email to {email}: {e}")

@@ -5,7 +5,7 @@
 import json
 import requests
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -97,8 +97,21 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
 
     d = r.json()["daily"]
 
-    sunrise = d["sunrise"][0][-5:]
-    sunset = d["sunset"][0][-5:]
+    # -----------------------
+    # 🌅 FIXED TIME FORMAT (AM/PM)
+    # -----------------------
+    sunrise_raw = d["sunrise"][0]
+    sunset_raw = d["sunset"][0]
+
+    sunrise_dt = datetime.fromisoformat(sunrise_raw)
+    sunset_dt = datetime.fromisoformat(sunset_raw)
+
+    sunrise = sunrise_dt.strftime("%I:%M %p").lstrip("0")
+    sunset = sunset_dt.strftime("%I:%M %p").lstrip("0")
+
+    # -----------------------
+    # TEMP + PRECIP
+    # -----------------------
     high_c = d["temperature_2m_max"][0]
     low_c = d["temperature_2m_min"][0]
     precip = d["precipitation_sum"][0]
@@ -227,7 +240,7 @@ def todays_quote():
 
 
 # ============================================================
-# EMAIL CONTENT BUILDER
+# EMAIL CONTENT BUILDER (TEXT VERSION)
 # ============================================================
 
 def build_email_content(zip_code: str, weather: WeatherSignal, pollen: PollenSignal) -> str:
@@ -248,7 +261,6 @@ Black Ice Risk: {commute["ice_risk"]}
 {commute["ice_text"]}
 """
 
-    # Only include pollen if any value exists
     pollen_section = ""
 
     if any([
