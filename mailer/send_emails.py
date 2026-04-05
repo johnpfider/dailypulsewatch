@@ -118,6 +118,7 @@ def main():
                 weather=weather,
                 horoscopes=user_horoscopes,
                 quote=quote,
+                user_email=email   # 👈 NEW
             )
 
             print("\n-----------------------")

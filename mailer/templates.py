@@ -2,7 +2,7 @@
 # DailyPulseWatch — Email Template (HTML)
 # ============================================================
 
-def build_email(moon, weather, horoscopes, quote):
+def build_email(moon, weather, horoscopes, quote, user_email):
 
     # -----------------------
     # WEATHER SUMMARY (UPDATED)
@@ -56,18 +56,18 @@ def build_email(moon, weather, horoscopes, quote):
     horoscope_html = ""
     if horoscopes:
         items = "".join(
-            f"<p><strong>{sign.title()}</strong><br/>{text}</p>"
+            f"<p style='margin-bottom:12px;'><strong>{sign.title()}</strong><br/>{text}</p>"
             for sign, text in horoscopes.items()
             if text
         )
 
         horoscope_html = f"""
         <div style="
-            margin-top:20px;
+            margin-top:24px;
             padding:18px;
             border:1px solid #E5E7EB;
             border-radius:14px;
-            box-shadow:0 4px 10px rgba(0,0,0,0.06);
+            box-shadow:0 6px 14px rgba(0,0,0,0.08);
         ">
             <h4 style="margin-top:0;">🔮 Optional Horoscope</h4>
             {items}
@@ -85,32 +85,31 @@ def build_email(moon, weather, horoscopes, quote):
             max-width:640px;
             margin:auto;
             background:#FFFFFF;
-            padding:24px;
-            border-radius:16px;
+            padding:28px;
+            border-radius:18px;
             border:1px solid #E5E7EB;
-            box-shadow:0 10px 24px rgba(0,0,0,0.08);
+            box-shadow:0 12px 28px rgba(0,0,0,0.12);
         ">
 
             <h2 style="margin-top:0;">🌅 DailyPulseWatch</h2>
 
-            <p>
+            <p style="margin-bottom:20px;">
                 Here’s your daily briefing to help you start your day with clarity.
             </p>
 
-            <!-- WEATHER -->
-            <h4>🌤 Weather</h4>
+            <h4 style="margin-top:20px;">🌤 Weather</h4>
             <p>{weather_line}</p>
 
-            <!-- SUN -->
-            <h4>🌅 Sun</h4>
+            <h4 style="margin-top:20px;">🌅 Sun</h4>
             <p>
                 Sunrise: {sunrise}<br/>
                 Sunset: {sunset}
             </p>
 
-            <!-- COMMUTE -->
+            <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
+
             <div style="
-                margin-top:16px;
+                margin-top:10px;
                 padding:18px;
                 background:#F9FAFB;
                 border:1px solid #E5E7EB;
@@ -121,28 +120,37 @@ def build_email(moon, weather, horoscopes, quote):
                 {commute_details_html}
             </div>
 
-            <!-- MOON -->
-            <h4 style="margin-top:20px;">🌙 Moon</h4>
+            <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
+
+            <h4>🌙 Moon</h4>
             <p>
                 <strong>{moon.phase}</strong><br/>
                 <em>{moon.meaning}</em>
             </p>
 
-            <!-- HOROSCOPE -->
             {horoscope_html}
 
-            <!-- QUOTE -->
-            <h4 style="margin-top:20px;">💬 Quote</h4>
+            <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
+
+            <h4>💬 Quote</h4>
             <p>
                 “{quote.get('text','')}”<br/>
                 — {quote.get('author','')}
             </p>
 
-            <!-- FOOTER -->
-            <div style="margin-top:24px;">
+            <!-- FOOTER WITH UNSUBSCRIBE -->
+            <div style="margin-top:28px;">
                 <p><strong>Built by a nurse, for nurses.</strong></p>
+
                 <p style="color:#6B7280; font-size:12px;">
                     You’re receiving this because you signed up for DailyPulseWatch.
+                </p>
+
+                <p style="margin-top:10px; font-size:12px;">
+                    <a href="https://dailypulsewatch.onrender.com/unsubscribe?email={user_email}"
+                       style="color:#2563EB; text-decoration:none;">
+                       Unsubscribe
+                    </a>
                 </p>
             </div>
 

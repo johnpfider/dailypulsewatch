@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Form
+from fastapi import FastAPI, HTTPException, Form, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from api.db import close_pool, get_conn
 from mailer.send_welcome import send_welcome_email
@@ -80,14 +81,13 @@ def subscribe(
 
     # Validate ZIP
     try:
-        lat, lon = geocode_zip(zip)
+        geocode_zip(zip)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid ZIP code")
 
     with get_conn() as conn:
         with conn.cursor() as cur:
 
-            # Check if user exists
             cur.execute(
                 "SELECT email FROM subscribers WHERE email = %s",
                 (email,)
@@ -95,7 +95,6 @@ def subscribe(
             row = cur.fetchone()
 
             if row:
-                # Reactivate + update info
                 cur.execute(
                     """
                     UPDATE subscribers
@@ -107,9 +106,7 @@ def subscribe(
                     (zip, horoscope, email)
                 )
                 message = "reactivated"
-
             else:
-                # Insert new user
                 cur.execute(
                     """
                     INSERT INTO subscribers (email, zip, horoscope, is_active)
@@ -121,7 +118,6 @@ def subscribe(
 
         conn.commit()
 
-    # Send welcome email
     try:
         send_welcome_email(email, zip, horoscope)
     except Exception as e:
@@ -131,7 +127,7 @@ def subscribe(
 
 
 # -----------------------
-# Unsubscribe
+# Unsubscribe (POST API)
 # -----------------------
 
 @app.post("/unsubscribe")
@@ -145,6 +141,81 @@ def unsubscribe(req: UnsubscribeRequest):
         conn.commit()
 
     return {"status": "unsubscribed", "email": req.email}
+
+
+# -----------------------
+# Unsubscribe (GET for email link)
+# -----------------------
+
+@app.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_link(email: str = Query(...)):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                "SELECT email FROM subscribers WHERE email = %s",
+                (email,)
+            )
+            row = cur.fetchone()
+
+            if row:
+                cur.execute(
+                    "UPDATE subscribers SET is_active = FALSE WHERE email = %s",
+                    (email,)
+                )
+                conn.commit()
+                success = True
+            else:
+                success = False
+
+    if success:
+        return f"""
+        <html>
+        <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:30px;">
+            <div style="
+                max-width:600px;
+                margin:auto;
+                background:#FFFFFF;
+                padding:28px;
+                border-radius:18px;
+                border:1px solid #E5E7EB;
+                box-shadow:0 12px 28px rgba(0,0,0,0.12);
+            ">
+                <h2 style="margin-top:0;">You’ve been unsubscribed</h2>
+                <p>
+                    <strong>{email}</strong> will no longer receive DailyPulseWatch emails.
+                </p>
+                <p style="color:#6B7280;">
+                    If this was a mistake, you can sign up again anytime.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+    else:
+        return f"""
+        <html>
+        <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:30px;">
+            <div style="
+                max-width:600px;
+                margin:auto;
+                background:#FFFFFF;
+                padding:28px;
+                border-radius:18px;
+                border:1px solid #E5E7EB;
+                box-shadow:0 12px 28px rgba(0,0,0,0.12);
+            ">
+                <h2 style="margin-top:0;">Email not found</h2>
+                <p>
+                    We couldn’t find <strong>{email}</strong>.
+                </p>
+                <p style="color:#6B7280;">
+                    It may already be unsubscribed.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
 
 
 # -----------------------
@@ -181,13 +252,11 @@ def subscriber_count():
     with get_conn() as conn:
         with conn.cursor() as cur:
 
-            # Active subscribers
             cur.execute(
                 "SELECT COUNT(*) FROM subscribers WHERE is_active = TRUE"
             )
             active = cur.fetchone()[0]
 
-            # Total subscribers ever
             cur.execute(
                 "SELECT COUNT(*) FROM subscribers"
             )
