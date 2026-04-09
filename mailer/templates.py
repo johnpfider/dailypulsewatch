@@ -2,7 +2,7 @@
 # DailyPulseWatch — Email Template (HTML)
 # ============================================================
 
-from mailer.content import pollen_level
+from mailer.content import pollen_level, allergy_risk
 
 
 def build_email(moon, weather, horoscopes, quote, user_email, pollen):
@@ -54,16 +54,13 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
             """
 
     # -----------------------
-    # 🌿 POLLEN SECTION (NEW)
+    # 🌿 POLLEN SECTION (UPGRADED)
     # -----------------------
     pollen_html = ""
 
-    if pollen and any([
-        pollen.alder,
-        pollen.birch,
-        pollen.grass,
-        pollen.ragweed
-    ]):
+    if pollen:
+        risk = allergy_risk(pollen)
+
         pollen_html = f"""
         <div style="
             margin-top:20px;
@@ -73,11 +70,16 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
             background:#F9FAFB;
         ">
             <h4 style="margin-top:0;">🌿 Pollen Levels</h4>
+
+            <p style="margin:0 0 10px 0;">
+                <strong>Allergy Risk:</strong> {risk}
+            </p>
+
             <p style="margin:0;">
-                Alder: {pollen_level(pollen.alder)}<br/>
-                Birch: {pollen_level(pollen.birch)}<br/>
-                Grass: {pollen_level(pollen.grass)}<br/>
-                Ragweed: {pollen_level(pollen.ragweed)}
+                Alder: {pollen_level(getattr(pollen, 'alder', 0))}<br/>
+                Birch: {pollen_level(getattr(pollen, 'birch', 0))}<br/>
+                Grass: {pollen_level(getattr(pollen, 'grass', 0))}<br/>
+                Ragweed: {pollen_level(getattr(pollen, 'ragweed', 0))}
             </p>
         </div>
         """

@@ -229,7 +229,30 @@ def pollen_level(value: Optional[float]) -> str:
     else:
         return "Very High"
 
+# -----------------------
+# 🌿 Allergy Risk Score
+# -----------------------
+def allergy_risk(pollen):
+    try:
+        values = [
+            getattr(pollen, "alder", 0),
+            getattr(pollen, "birch", 0),
+            getattr(pollen, "grass", 0),
+            getattr(pollen, "ragweed", 0),
+        ]
 
+        max_val = max(values)
+
+        if max_val >= 7:
+            return "🔴 High"
+        elif max_val >= 3:
+            return "🟡 Moderate"
+        else:
+            return "🟢 Low"
+
+    except Exception:
+        return "Unavailable"
+    
 # ============================================================
 # COMMUTE / BLACK ICE LOGIC
 # ============================================================
