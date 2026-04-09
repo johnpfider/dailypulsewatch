@@ -2,12 +2,14 @@ import requests
 from collections import defaultdict
 import boto3
 import os
+import time  # ✅ NEW
 
 from mailer.weather_cache import get_cached_weather
-from mailer.content import compute_moon, todays_quote, fetch_pollen
+from mailer.content import compute_moon, todays_quote
 from mailer.templates import build_email
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
+from mailer.content import fetch_pollen
 
 API_URL = "https://dailypulsewatch.onrender.com/subscribers"
 
@@ -43,12 +45,33 @@ def send_email(to_email, subject, html_body):
 
 
 # -----------------------
-# Fetch Subscribers
+# Fetch Subscribers (RETRY VERSION)
 # -----------------------
-def get_subscribers():
-    r = requests.get(API_URL)
-    r.raise_for_status()
-    return r.json()
+def get_subscribers(retries=3, delay=2):
+
+    for attempt in range(1, retries + 1):
+
+        try:
+            print(f"📡 Fetching subscribers (attempt {attempt})...")
+
+            r = requests.get(API_URL, timeout=5)
+
+            if r.status_code == 200:
+                print("✅ Subscribers fetched successfully")
+                return r.json()
+
+            else:
+                print(f"⚠️ API error: {r.status_code} - {r.text}")
+
+        except Exception as e:
+            print(f"❌ Attempt {attempt} failed: {e}")
+
+        if attempt < retries:
+            print(f"⏳ Retrying in {delay} seconds...")
+            time.sleep(delay)
+
+    print("🚨 All retries failed. Returning empty subscriber list.")
+    return []
 
 
 # -----------------------
@@ -70,6 +93,11 @@ def main():
 
     subscribers = get_subscribers()
 
+    # ✅ SAFETY EXIT (prevents crash)
+    if not subscribers:
+        print("⚠️ No subscribers found or API unavailable. Exiting safely.")
+        return
+
     print(f"\nFound {len(subscribers)} subscribers\n")
 
     grouped = group_by_zip(subscribers)
@@ -84,7 +112,7 @@ def main():
         weather = get_cached_weather(zip_code)
 
         lat, lon = geocode_zip(zip_code)
-
+        pollen = fetch_pollen(lat, lon)
         moon = compute_moon()
         quote = todays_quote()
 
@@ -117,7 +145,8 @@ def main():
                 weather=weather,
                 horoscopes=user_horoscopes,
                 quote=quote,
-                user_email=email
+                user_email=email,
+                pollen=pollen
             )
 
             print("\n-----------------------")

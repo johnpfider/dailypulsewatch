@@ -1,5 +1,5 @@
 from mailer.weather_cache import get_cached_weather
-from mailer.content import compute_moon, todays_quote, fetch_pollen
+from mailer.content import compute_moon, todays_quote, fetch_pollen, pollen_level
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
 import boto3
@@ -53,6 +53,35 @@ def send_welcome_email(email, zip_code, horoscope):
         commute_line = "No major weather-related commute concerns."
 
         # -----------------------
+        # POLLEN HTML
+        # -----------------------
+        pollen_html = ""
+
+        if pollen and any([
+            pollen.alder,
+            pollen.birch,
+            pollen.grass,
+            pollen.ragweed
+        ]):
+            pollen_html = f"""
+            <div style="
+                margin-top:20px;
+                padding:18px;
+                border:1px solid #E5E7EB;
+                border-radius:14px;
+                background:#F9FAFB;
+            ">
+                <h4 style="margin-top:0;">🌿 Pollen Levels</h4>
+                <p>
+                    Alder: {pollen_level(pollen.alder)}<br/>
+                    Birch: {pollen_level(pollen.birch)}<br/>
+                    Grass: {pollen_level(pollen.grass)}<br/>
+                    Ragweed: {pollen_level(pollen.ragweed)}
+                </p>
+            </div>
+            """
+
+        # -----------------------
         # HOROSCOPE BLOCK
         # -----------------------
         horoscope_html = ""
@@ -78,7 +107,7 @@ def send_welcome_email(email, zip_code, horoscope):
         unsubscribe_link = f"https://dailypulsewatch.onrender.com/unsubscribe?email={email}"
 
         # -----------------------
-        # HTML (MATCHES TEMPLATE STYLE)
+        # HTML
         # -----------------------
         html = f"""
         <html>
@@ -125,6 +154,8 @@ def send_welcome_email(email, zip_code, horoscope):
                     <h4 style="margin-top:0;">🚗 Commute Weather Watch</h4>
                     <p>{commute_line}</p>
                 </div>
+
+                {pollen_html}
 
                 <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 

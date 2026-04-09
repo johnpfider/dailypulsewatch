@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
+import time
 
 from astral.moon import phase as moon_phase
 
@@ -92,42 +93,59 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
         "timezone": "auto",
     }
 
-    r = requests.get(url, params=params, timeout=5)
-    r.raise_for_status()
+    retries = 3
+    delay = 2
 
-    d = r.json()["daily"]
+    for attempt in range(1, retries + 1):
 
-    # -----------------------
-    # 🌅 FIXED TIME FORMAT (AM/PM)
-    # -----------------------
-    sunrise_raw = d["sunrise"][0]
-    sunset_raw = d["sunset"][0]
+        try:
+            print(f"🌦️ Fetching weather (attempt {attempt})...")
 
-    sunrise_dt = datetime.fromisoformat(sunrise_raw)
-    sunset_dt = datetime.fromisoformat(sunset_raw)
+            r = requests.get(url, params=params, timeout=5)
+            r.raise_for_status()
 
-    sunrise = sunrise_dt.strftime("%I:%M %p").lstrip("0")
-    sunset = sunset_dt.strftime("%I:%M %p").lstrip("0")
+            d = r.json()["daily"]
 
-    # -----------------------
-    # TEMP + PRECIP
-    # -----------------------
-    high_c = d["temperature_2m_max"][0]
-    low_c = d["temperature_2m_min"][0]
-    precip = d["precipitation_sum"][0]
+            # 🌅 FORMAT TIME
+            sunrise_raw = d["sunrise"][0]
+            sunset_raw = d["sunset"][0]
 
-    high_f = round(high_c * 9/5 + 32, 1)
-    low_f = round(low_c * 9/5 + 32, 1)
+            sunrise_dt = datetime.fromisoformat(sunrise_raw)
+            sunset_dt = datetime.fromisoformat(sunset_raw)
 
-    return WeatherSignal(
-        high_f=high_f,
-        low_f=low_f,
-        precip_mm=round(precip, 1),
-        freezing=low_f <= 32,
-        sunrise=sunrise,
-        sunset=sunset
-    )
+            sunrise = sunrise_dt.strftime("%I:%M %p").lstrip("0")
+            sunset = sunset_dt.strftime("%I:%M %p").lstrip("0")
 
+            # 🌡️ TEMP + PRECIP
+            high_c = d["temperature_2m_max"][0]
+            low_c = d["temperature_2m_min"][0]
+            precip = d["precipitation_sum"][0]
+
+            high_f = round(high_c * 9/5 + 32, 1)
+            low_f = round(low_c * 9/5 + 32, 1)
+
+            print("✅ Weather fetched successfully")
+
+            return WeatherSignal(
+                high_f=high_f,
+                low_f=low_f,
+                precip_mm=round(precip, 1),
+                freezing=low_f <= 32,
+                sunrise=sunrise,
+                sunset=sunset
+            )
+
+        except Exception as e:
+            print(f"❌ Weather attempt {attempt} failed: {e}")
+
+            if attempt < retries:
+                print(f"⏳ Retrying weather in {delay} seconds...")
+                time.sleep(delay)
+
+    # 🚨 FINAL FAILURE
+    print("🚨 All weather retries failed — using fallback")
+
+    raise Exception("Weather API failed after retries")
 
 # ============================================================
 # POLLEN LOGIC
@@ -158,16 +176,42 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
         "timezone": "auto"
     }
 
-    r = requests.get(url, params=params, timeout=5)
-    r.raise_for_status()
+    retries = 3
+    delay = 2
 
-    data = r.json().get("hourly", {})
+    for attempt in range(1, retries + 1):
+        try:
+            print(f"🌿 Fetching pollen (attempt {attempt})...")
+
+            r = requests.get(url, params=params, timeout=5)
+            r.raise_for_status()
+
+            data = r.json().get("hourly", {})
+
+            print("✅ Pollen fetched successfully")
+
+            return PollenSignal(
+                alder=_daily_peak(data.get("alder_pollen")),
+                birch=_daily_peak(data.get("birch_pollen")),
+                grass=_daily_peak(data.get("grass_pollen")),
+                ragweed=_daily_peak(data.get("ragweed_pollen")),
+            )
+
+        except Exception as e:
+            print(f"❌ Pollen attempt {attempt} failed: {e}")
+
+            if attempt < retries:
+                print(f"⏳ Retrying pollen in {delay} seconds...")
+                time.sleep(delay)
+
+    # 🚨 FINAL FAILURE → graceful fallback
+    print("🚨 All pollen retries failed — using fallback")
 
     return PollenSignal(
-        alder=_daily_peak(data.get("alder_pollen")),
-        birch=_daily_peak(data.get("birch_pollen")),
-        grass=_daily_peak(data.get("grass_pollen")),
-        ragweed=_daily_peak(data.get("ragweed_pollen")),
+        alder=None,
+        birch=None,
+        grass=None,
+        ragweed=None
     )
 
 

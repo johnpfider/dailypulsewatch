@@ -2,10 +2,13 @@
 # DailyPulseWatch — Email Template (HTML)
 # ============================================================
 
-def build_email(moon, weather, horoscopes, quote, user_email):
+from mailer.content import pollen_level
+
+
+def build_email(moon, weather, horoscopes, quote, user_email, pollen):
 
     # -----------------------
-    # WEATHER SUMMARY (UPDATED)
+    # WEATHER SUMMARY (SAFE)
     # -----------------------
     if getattr(weather, "unavailable", False):
         weather_line = "Weather data is temporarily unavailable."
@@ -17,7 +20,7 @@ def build_email(moon, weather, horoscopes, quote, user_email):
         sunset = weather.sunset
 
     # -----------------------
-    # COMMUTE LOGIC (SAFEGUARD)
+    # COMMUTE LOGIC (SAFE)
     # -----------------------
     if getattr(weather, "unavailable", False):
         commute_line = "Commute conditions unavailable due to missing weather data."
@@ -49,6 +52,35 @@ def build_email(moon, weather, horoscopes, quote, user_email):
                 <p style="margin-top:8px;">{ice_text}</p>
             </div>
             """
+
+    # -----------------------
+    # 🌿 POLLEN SECTION (NEW)
+    # -----------------------
+    pollen_html = ""
+
+    if pollen and any([
+        pollen.alder,
+        pollen.birch,
+        pollen.grass,
+        pollen.ragweed
+    ]):
+        pollen_html = f"""
+        <div style="
+            margin-top:20px;
+            padding:18px;
+            border:1px solid #E5E7EB;
+            border-radius:14px;
+            background:#F9FAFB;
+        ">
+            <h4 style="margin-top:0;">🌿 Pollen Levels</h4>
+            <p style="margin:0;">
+                Alder: {pollen_level(pollen.alder)}<br/>
+                Birch: {pollen_level(pollen.birch)}<br/>
+                Grass: {pollen_level(pollen.grass)}<br/>
+                Ragweed: {pollen_level(pollen.ragweed)}
+            </p>
+        </div>
+        """
 
     # -----------------------
     # HOROSCOPE BLOCK
@@ -120,6 +152,8 @@ def build_email(moon, weather, horoscopes, quote, user_email):
                 {commute_details_html}
             </div>
 
+            {pollen_html}
+
             <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
             <h4>🌙 Moon</h4>
@@ -138,7 +172,7 @@ def build_email(moon, weather, horoscopes, quote, user_email):
                 — {quote.get('author','')}
             </p>
 
-            <!-- FOOTER WITH UNSUBSCRIBE -->
+            <!-- FOOTER -->
             <div style="margin-top:28px;">
                 <p><strong>Built by a nurse, for nurses.</strong></p>
 
