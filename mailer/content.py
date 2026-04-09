@@ -45,10 +45,10 @@ class WeatherSignal:
 
 @dataclass(slots=True)
 class PollenSignal:
-    alder: Optional[float]
-    birch: Optional[float]
-    grass: Optional[float]
-    ragweed: Optional[float]
+    alder: float
+    birch: float
+    grass: float
+    ragweed: float
 
 
 # ============================================================
@@ -121,8 +121,8 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             low_c = d["temperature_2m_min"][0]
             precip = d["precipitation_sum"][0]
 
-            high_f = round(high_c * 9/5 + 32, 1)
-            low_f = round(low_c * 9/5 + 32, 1)
+            high_f = round(high_c * 9 / 5 + 32, 1)
+            low_f = round(low_c * 9 / 5 + 32, 1)
 
             print("✅ Weather fetched successfully")
 
@@ -147,21 +147,22 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
 
     raise Exception("Weather API failed after retries")
 
+
 # ============================================================
 # POLLEN LOGIC
 # ============================================================
 
-def _daily_peak(values) -> Optional[float]:
+def _daily_peak(values) -> float:
 
     if not values:
-        return None
+        return 0.0
 
     clean = [v for v in values if v is not None]
 
     if not clean:
-        return None
+        return 0.0
 
-    return max(clean)
+    return float(max(clean))
 
 
 def fetch_pollen(lat: float, lon: float) -> PollenSignal:
@@ -190,12 +191,16 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
 
             print("✅ Pollen fetched successfully")
 
-            return PollenSignal(
+            pollen = PollenSignal(
                 alder=_daily_peak(data.get("alder_pollen")),
                 birch=_daily_peak(data.get("birch_pollen")),
                 grass=_daily_peak(data.get("grass_pollen")),
                 ragweed=_daily_peak(data.get("ragweed_pollen")),
             )
+
+            print(f"🌿 CLEANED POLLEN: {pollen}")
+
+            return pollen
 
         except Exception as e:
             print(f"❌ Pollen attempt {attempt} failed: {e}")
@@ -208,17 +213,14 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
     print("🚨 All pollen retries failed — using fallback")
 
     return PollenSignal(
-        alder=None,
-        birch=None,
-        grass=None,
-        ragweed=None
+        alder=0.0,
+        birch=0.0,
+        grass=0.0,
+        ragweed=0.0
     )
 
 
-def pollen_level(value: Optional[float]) -> str:
-
-    if value is None:
-        return "Unavailable"
+def pollen_level(value: float) -> str:
 
     if value < 1:
         return "Low"
@@ -229,30 +231,28 @@ def pollen_level(value: Optional[float]) -> str:
     else:
         return "Very High"
 
+
 # -----------------------
 # 🌿 Allergy Risk Score
 # -----------------------
-def allergy_risk(pollen):
-    try:
-        values = [
-            getattr(pollen, "alder", 0),
-            getattr(pollen, "birch", 0),
-            getattr(pollen, "grass", 0),
-            getattr(pollen, "ragweed", 0),
-        ]
+def allergy_risk(pollen) -> str:
+    values = [
+        getattr(pollen, "alder", 0) or 0,
+        getattr(pollen, "birch", 0) or 0,
+        getattr(pollen, "grass", 0) or 0,
+        getattr(pollen, "ragweed", 0) or 0,
+    ]
 
-        max_val = max(values)
+    max_val = max(values)
 
-        if max_val >= 7:
-            return "🔴 High"
-        elif max_val >= 3:
-            return "🟡 Moderate"
-        else:
-            return "🟢 Low"
+    if max_val >= 7:
+        return "🔴 High"
+    elif max_val >= 3:
+        return "🟡 Moderate"
+    else:
+        return "🟢 Low"
 
-    except Exception:
-        return "Unavailable"
-    
+
 # ============================================================
 # COMMUTE / BLACK ICE LOGIC
 # ============================================================
@@ -328,22 +328,14 @@ Black Ice Risk: {commute["ice_risk"]}
 {commute["ice_text"]}
 """
 
-    pollen_section = ""
-
-    if any([
-        pollen.alder,
-        pollen.birch,
-        pollen.grass,
-        pollen.ragweed
-    ]):
-
-        pollen_section = f"""
+    pollen_section = f"""
 Pollen
 ------
 Alder: {pollen_level(pollen.alder)}
 Birch: {pollen_level(pollen.birch)}
 Grass: {pollen_level(pollen.grass)}
 Ragweed: {pollen_level(pollen.ragweed)}
+Allergy Risk: {allergy_risk(pollen)}
 """
 
     return f"""
