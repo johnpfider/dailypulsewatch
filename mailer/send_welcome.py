@@ -2,19 +2,12 @@ from mailer.weather_cache import get_cached_weather
 from mailer.content import compute_moon, todays_quote, fetch_pollen, pollen_level
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
-import boto3
+import requests
 import os
 
 
-# =========================
-# AWS SES CLIENT
-# =========================
-ses = boto3.client(
-    "ses",
-    region_name=os.getenv("AWS_REGION"),
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+FROM_EMAIL = os.getenv("FROM_EMAIL")
 
 
 def send_welcome_email(email, zip_code, horoscope):
@@ -48,7 +41,7 @@ def send_welcome_email(email, zip_code, horoscope):
             sunset = weather.sunset
 
         # -----------------------
-        # COMMUTE (simple version)
+        # COMMUTE
         # -----------------------
         commute_line = "No major weather-related commute concerns."
 
@@ -57,12 +50,7 @@ def send_welcome_email(email, zip_code, horoscope):
         # -----------------------
         pollen_html = ""
 
-        if pollen and any([
-            pollen.alder,
-            pollen.birch,
-            pollen.grass,
-            pollen.ragweed
-        ]):
+        if pollen:
             pollen_html = f"""
             <div style="
                 margin-top:20px;
@@ -82,7 +70,7 @@ def send_welcome_email(email, zip_code, horoscope):
             """
 
         # -----------------------
-        # HOROSCOPE BLOCK
+        # HOROSCOPE
         # -----------------------
         horoscope_html = ""
         if horoscope and horoscope_map:
@@ -102,7 +90,7 @@ def send_welcome_email(email, zip_code, horoscope):
             """
 
         # -----------------------
-        # UNSUBSCRIBE LINK
+        # UNSUBSCRIBE
         # -----------------------
         unsubscribe_link = f"https://dailypulsewatch.onrender.com/unsubscribe?email={email}"
 
@@ -123,41 +111,34 @@ def send_welcome_email(email, zip_code, horoscope):
                 box-shadow:0 12px 28px rgba(0,0,0,0.12);
             ">
 
-                <h2 style="margin-top:0;">👋 Welcome to DailyPulseWatch</h2>
+                <h2>👋 Welcome to DailyPulseWatch</h2>
+
+                <p>You're officially on the list.</p>
 
                 <p>
-                    You're officially on the list.
+                    Starting today, you'll receive a simple daily briefing
+                    designed to help you start your day with clarity.
                 </p>
 
-                <p style="margin-bottom:20px;">
-                    Starting today, you'll receive a simple daily briefing designed to help you start your day with clarity.
-                </p>
-
-                <h4 style="margin-top:20px;">🌤 Weather</h4>
+                <h4>🌤 Weather</h4>
                 <p>{weather_line}</p>
 
-                <h4 style="margin-top:20px;">🌅 Sun</h4>
+                <h4>🌅 Sun</h4>
                 <p>
                     Sunrise: {sunrise}<br/>
                     Sunset: {sunset}
                 </p>
 
-                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
+                <hr>
 
-                <div style="
-                    margin-top:10px;
-                    padding:18px;
-                    background:#F9FAFB;
-                    border:1px solid #E5E7EB;
-                    border-radius:14px;
-                ">
-                    <h4 style="margin-top:0;">🚗 Commute Weather Watch</h4>
+                <div style="padding:18px; background:#F9FAFB; border-radius:14px;">
+                    <h4>🚗 Commute Weather Watch</h4>
                     <p>{commute_line}</p>
                 </div>
 
                 {pollen_html}
 
-                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
+                <hr>
 
                 <h4>🌙 Moon</h4>
                 <p>
@@ -167,7 +148,7 @@ def send_welcome_email(email, zip_code, horoscope):
 
                 {horoscope_html}
 
-                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
+                <hr>
 
                 <h4>💬 Quote</h4>
                 <p>
@@ -175,7 +156,6 @@ def send_welcome_email(email, zip_code, horoscope):
                     — {quote.get('author','')}
                 </p>
 
-                <!-- FOOTER -->
                 <div style="margin-top:28px;">
                     <p><strong>Built by a nurse, for nurses.</strong></p>
 
@@ -183,10 +163,9 @@ def send_welcome_email(email, zip_code, horoscope):
                         You’re receiving this because you signed up for DailyPulseWatch.
                     </p>
 
-                    <p style="margin-top:10px; font-size:12px;">
-                        <a href="{unsubscribe_link}"
-                           style="color:#2563EB; text-decoration:none;">
-                           Unsubscribe
+                    <p style="font-size:12px;">
+                        <a href="{unsubscribe_link}">
+                            Unsubscribe
                         </a>
                     </p>
                 </div>
@@ -198,20 +177,26 @@ def send_welcome_email(email, zip_code, horoscope):
         """
 
         # -----------------------
-        # SEND EMAIL
+        # SEND VIA RESEND
         # -----------------------
-        ses.send_email(
-            Source=os.getenv("FROM_EMAIL"),
-            Destination={"ToAddresses": [email]},
-            Message={
-                "Subject": {"Data": "Welcome to DailyPulseWatch"},
-                "Body": {
-                    "Html": {"Data": html}
-                },
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": FROM_EMAIL,
+                "to": [email],
+                "subject": "Welcome to DailyPulseWatch",
+                "html": html,
             },
         )
 
-        print(f"✅ Welcome email sent to {email}")
+        if response.status_code == 200:
+            print(f"✅ Welcome email sent to {email}")
+        else:
+            print(f"❌ Failed: {response.text}")
 
     except Exception as e:
         print(f"❌ Failed to send welcome email to {email}: {e}")
