@@ -1,47 +1,46 @@
 import requests
 from collections import defaultdict
-import boto3
 import os
-import time  # ✅ NEW
+import time
 
 from mailer.weather_cache import get_cached_weather
-from mailer.content import compute_moon, todays_quote
+from mailer.content import compute_moon, todays_quote, fetch_pollen
 from mailer.templates import build_email
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
-from mailer.content import fetch_pollen
 
 API_URL = "https://dailypulsewatch.onrender.com/subscribers"
 
-# -----------------------
-# AWS SES Setup
-# -----------------------
-ses = boto3.client(
-    "ses",
-    region_name=os.getenv("AWS_REGION"),
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
 
-
+# -----------------------
+# RESEND EMAIL FUNCTION
+# -----------------------
 def send_email(to_email, subject, html_body):
-    """Send HTML email via Amazon SES"""
+    """Send email via Resend API"""
+
     try:
-        response = ses.send_email(
-            Source=os.getenv("FROM_EMAIL"),
-            Destination={"ToAddresses": [to_email]},
-            Message={
-                "Subject": {"Data": subject},
-                "Body": {
-                    "Html": {"Data": html_body}
-                },
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {os.getenv('RESEND_API_KEY')}",
+                "Content-Type": "application/json",
             },
+            json={
+                "from": os.getenv("FROM_EMAIL"),
+                "to": [to_email],
+                "subject": subject,
+                "html": html_body,
+            },
+            timeout=10,
         )
-        print(f"✅ Sent to {to_email}")
-        return response
+
+        if response.status_code == 200:
+            print(f"✅ Sent to {to_email}")
+        else:
+            print(f"❌ Failed to send to {to_email}: {response.text}")
 
     except Exception as e:
-        print(f"❌ Failed to send to {to_email}: {e}")
+        print(f"❌ Error sending to {to_email}: {e}")
 
 
 # -----------------------
@@ -93,7 +92,7 @@ def main():
 
     subscribers = get_subscribers()
 
-    # ✅ SAFETY EXIT (prevents crash)
+    # ✅ SAFETY EXIT
     if not subscribers:
         print("⚠️ No subscribers found or API unavailable. Exiting safely.")
         return
@@ -113,11 +112,12 @@ def main():
 
         lat, lon = geocode_zip(zip_code)
         pollen = fetch_pollen(lat, lon)
+
         moon = compute_moon()
         quote = todays_quote()
 
         # -----------------------
-        # 🧠 COLLECT HOROSCOPES (BATCH)
+        # 🧠 COLLECT HOROSCOPES
         # -----------------------
         signs = set(
             user["horoscope"]
