@@ -41,6 +41,8 @@ class WeatherSignal:
     freezing: bool
     sunrise: str
     sunset: str
+    wind_speed: float = 0.0
+    wind_gust: float = 0.0
 
 
 @dataclass(slots=True)
@@ -89,6 +91,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
         "latitude": lat,
         "longitude": lon,
         "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,sunrise,sunset",
+        "hourly": "windspeed_10m,windgusts_10m",
         "forecast_days": 1,
         "timezone": "auto",
     }
@@ -104,7 +107,9 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             r = requests.get(url, params=params, timeout=5)
             r.raise_for_status()
 
-            d = r.json()["daily"]
+            payload = r.json()
+            d = payload["daily"]
+            hourly = payload.get("hourly", {})
 
             # 🌅 FORMAT TIME
             sunrise_raw = d["sunrise"][0]
@@ -124,7 +129,12 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             high_f = round(high_c * 9 / 5 + 32, 1)
             low_f = round(low_c * 9 / 5 + 32, 1)
 
+            # 🌬️ WIND
+            wind_speed = float(max(hourly.get("windspeed_10m", [0]) or [0]))
+            wind_gust = float(max(hourly.get("windgusts_10m", [0]) or [0]))
+
             print("✅ Weather fetched successfully")
+            print(f"🌬️ WIND: speed={wind_speed}, gust={wind_gust}")
 
             return WeatherSignal(
                 high_f=high_f,
@@ -132,7 +142,9 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 precip_mm=round(precip, 1),
                 freezing=low_f <= 32,
                 sunrise=sunrise,
-                sunset=sunset
+                sunset=sunset,
+                wind_speed=wind_speed,
+                wind_gust=wind_gust
             )
 
         except Exception as e:
@@ -289,6 +301,26 @@ def allergy_risk(pollen) -> str:
         return "🟢 Low"
 
 
+def pollen_context_line(weather: WeatherSignal) -> str:
+
+    # Rain first
+    if weather.precip_mm >= 2:
+        return "💡 Rain in the forecast may help reduce pollen levels by washing it out of the air."
+
+    elif weather.precip_mm > 0:
+        return "💡 Light rain may temporarily reduce pollen levels."
+
+    # Then wind
+    if weather.wind_gust >= 20:
+        return "💡 Gusty winds may increase pollen spread and worsen allergy symptoms."
+
+    elif weather.wind_speed >= 10:
+        return "💡 Breezy conditions may carry more pollen through the air."
+
+    # Default
+    return "💡 Dry and calm conditions may allow pollen levels to remain steady."
+
+
 # ============================================================
 # COMMUTE / BLACK ICE LOGIC
 # ============================================================
@@ -364,6 +396,8 @@ Black Ice Risk: {commute["ice_risk"]}
 {commute["ice_text"]}
 """
 
+    context_line = pollen_context_line(weather)
+
     pollen_section = f"""
 Pollen
 ------
@@ -372,6 +406,8 @@ Birch: {pollen_level(pollen.birch)}
 Grass: {pollen_level(pollen.grass)}
 Ragweed: {pollen_level(pollen.ragweed)}
 Allergy Risk: {allergy_risk(pollen)}
+
+{context_line}
 """
 
     return f"""
