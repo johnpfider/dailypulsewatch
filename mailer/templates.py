@@ -2,7 +2,7 @@
 # DailyPulseWatch — Email Template (HTML)
 # ============================================================
 
-from mailer.content import pollen_level, allergy_risk
+from mailer.content import pollen_level, allergy_risk, pollen_context_line
 
 
 def build_email(moon, weather, horoscopes, quote, user_email, pollen):
@@ -54,12 +54,15 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
             """
 
     # -----------------------
-    # 🌿 POLLEN SECTION (UPGRADED)
+    # 🌿 POLLEN SECTION (UPDATED WITH CONTEXT)
     # -----------------------
     pollen_html = ""
 
     if pollen:
         risk = allergy_risk(pollen)
+
+        # 🧠 NEW CONTEXT LINE
+        context_line = pollen_context_line(weather)
 
         pollen_html = f"""
         <div style="
@@ -80,6 +83,10 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
                 Birch: {pollen_level(getattr(pollen, 'birch', 0))}<br/>
                 Grass: {pollen_level(getattr(pollen, 'grass', 0))}<br/>
                 Ragweed: {pollen_level(getattr(pollen, 'ragweed', 0))}
+            </p>
+
+            <p style="margin-top:12px; font-size:13px; color:#4B5563;">
+                {context_line}
             </p>
         </div>
         """

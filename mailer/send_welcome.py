@@ -1,9 +1,16 @@
-from mailer.weather_cache import get_cached_weather
-from mailer.content import compute_moon, todays_quote, fetch_pollen, pollen_level
-from api.geo import geocode_zip
-from mailer.horoscope import get_horoscopes
 import requests
 import os
+
+from mailer.weather_cache import get_cached_weather
+from mailer.content import (
+    compute_moon,
+    todays_quote,
+    fetch_pollen,
+    pollen_level,
+    pollen_context_line,
+)
+from api.geo import geocode_zip
+from mailer.horoscope import get_horoscopes
 
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
@@ -29,7 +36,7 @@ def send_welcome_email(email, zip_code, horoscope):
             horoscope_map = get_horoscopes({horoscope.lower()})
 
         # -----------------------
-        # WEATHER SAFETY
+        # WEATHER (SAFE)
         # -----------------------
         if getattr(weather, "unavailable", False):
             weather_line = "Weather data is temporarily unavailable."
@@ -41,16 +48,18 @@ def send_welcome_email(email, zip_code, horoscope):
             sunset = weather.sunset
 
         # -----------------------
-        # COMMUTE
+        # COMMUTE (SIMPLE)
         # -----------------------
         commute_line = "No major weather-related commute concerns."
 
         # -----------------------
-        # POLLEN HTML
+        # 🌿 POLLEN HTML (WITH CONTEXT)
         # -----------------------
         pollen_html = ""
 
         if pollen:
+            context_line = pollen_context_line(weather)
+
             pollen_html = f"""
             <div style="
                 margin-top:20px;
@@ -66,11 +75,15 @@ def send_welcome_email(email, zip_code, horoscope):
                     Grass: {pollen_level(pollen.grass)}<br/>
                     Ragweed: {pollen_level(pollen.ragweed)}
                 </p>
+
+                <p style="margin-top:12px; font-size:13px; color:#4B5563;">
+                    {context_line}
+                </p>
             </div>
             """
 
         # -----------------------
-        # HOROSCOPE
+        # 🔮 HOROSCOPE
         # -----------------------
         horoscope_html = ""
         if horoscope and horoscope_map:
@@ -95,7 +108,7 @@ def send_welcome_email(email, zip_code, horoscope):
         unsubscribe_link = f"https://dailypulsewatch.onrender.com/unsubscribe?email={email}"
 
         # -----------------------
-        # HTML
+        # HTML TEMPLATE
         # -----------------------
         html = f"""
         <html>
