@@ -165,6 +165,39 @@ def _daily_peak(values) -> float:
     return float(max(clean))
 
 
+def adjust_for_season(pollen: PollenSignal) -> PollenSignal:
+    month = date.today().month
+
+    # Spring (tree pollen season)
+    if month in [3, 4, 5]:
+        return PollenSignal(
+            alder=max(pollen.alder, 2.0),
+            birch=max(pollen.birch, 2.0),
+            grass=max(pollen.grass, 1.0),
+            ragweed=pollen.ragweed,
+        )
+
+    # Summer (grass season)
+    elif month in [6, 7]:
+        return PollenSignal(
+            alder=pollen.alder,
+            birch=pollen.birch,
+            grass=max(pollen.grass, 2.0),
+            ragweed=pollen.ragweed,
+        )
+
+    # Fall (ragweed season)
+    elif month in [8, 9]:
+        return PollenSignal(
+            alder=pollen.alder,
+            birch=pollen.birch,
+            grass=pollen.grass,
+            ragweed=max(pollen.ragweed, 2.0),
+        )
+
+    return pollen
+
+
 def fetch_pollen(lat: float, lon: float) -> PollenSignal:
 
     url = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -191,14 +224,17 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
 
             print("✅ Pollen fetched successfully")
 
-            pollen = PollenSignal(
+            raw_pollen = PollenSignal(
                 alder=_daily_peak(data.get("alder_pollen")),
                 birch=_daily_peak(data.get("birch_pollen")),
                 grass=_daily_peak(data.get("grass_pollen")),
                 ragweed=_daily_peak(data.get("ragweed_pollen")),
             )
 
-            print(f"🌿 CLEANED POLLEN: {pollen}")
+            pollen = adjust_for_season(raw_pollen)
+
+            print(f"🌿 RAW POLLEN: {raw_pollen}")
+            print(f"🌿 ADJUSTED POLLEN: {pollen}")
 
             return pollen
 
@@ -222,11 +258,11 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
 
 def pollen_level(value: float) -> str:
 
-    if value < 1:
+    if value < 0.5:
         return "Low"
-    elif value < 5:
+    elif value < 2:
         return "Moderate"
-    elif value < 20:
+    elif value < 5:
         return "High"
     else:
         return "Very High"
@@ -245,9 +281,9 @@ def allergy_risk(pollen) -> str:
 
     max_val = max(values)
 
-    if max_val >= 7:
+    if max_val >= 5:
         return "🔴 High"
-    elif max_val >= 3:
+    elif max_val >= 2:
         return "🟡 Moderate"
     else:
         return "🟢 Low"
