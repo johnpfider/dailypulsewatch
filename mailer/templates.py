@@ -5,7 +5,9 @@
 from mailer.content import pollen_level, allergy_risk, pollen_context_line
 
 
-def build_email(moon, weather, horoscopes, quote, user_email, pollen):
+def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=None):
+
+    headlines = headlines or []
 
     # -----------------------
     # WEATHER SUMMARY (SAFE)
@@ -54,14 +56,12 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
             """
 
     # -----------------------
-    # 🌿 POLLEN SECTION (UPDATED WITH CONTEXT)
+    # 🌿 POLLEN SECTION
     # -----------------------
     pollen_html = ""
 
     if pollen:
         risk = allergy_risk(pollen)
-
-        # 🧠 NEW CONTEXT LINE
         context_line = pollen_context_line(weather)
 
         pollen_html = f"""
@@ -92,9 +92,47 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
         """
 
     # -----------------------
+    # 📰 HEADLINES SECTION
+    # -----------------------
+    headlines_html = ""
+
+    if headlines:
+        items = ""
+
+        for h in headlines:
+            items += f"""
+            <p style="margin:0 0 12px 0;">
+                <strong style="color:#374151;">{h.source}</strong><br/>
+                <a href="{h.link}" style="color:#2563EB; text-decoration:none;">
+                    {h.title}
+                </a>
+            </p>
+            """
+
+        headlines_html = f"""
+        <div style="
+            margin-top:24px;
+            padding:18px;
+            border:1px solid #E5E7EB;
+            border-radius:14px;
+            background:#FFFFFF;
+            box-shadow:0 6px 14px rgba(0,0,0,0.06);
+        ">
+            <h4 style="margin-top:0;">📰 Today’s Headlines</h4>
+
+            <p style="margin-top:0; color:#4B5563; font-size:13px;">
+                A quick skim of general and healthcare headlines.
+            </p>
+
+            {items}
+        </div>
+        """
+
+    # -----------------------
     # HOROSCOPE BLOCK
     # -----------------------
     horoscope_html = ""
+
     if horoscopes:
         items = "".join(
             f"<p style='margin-bottom:12px;'><strong>{sign.title()}</strong><br/>{text}</p>"
@@ -163,6 +201,8 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
 
             {pollen_html}
 
+            {headlines_html}
+
             <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
             <h4>🌙 Moon</h4>
@@ -181,7 +221,6 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen):
                 — {quote.get('author','')}
             </p>
 
-            <!-- FOOTER -->
             <div style="margin-top:28px;">
                 <p><strong>Built by a nurse, for nurses.</strong></p>
 

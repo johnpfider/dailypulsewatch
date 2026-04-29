@@ -4,7 +4,12 @@ import os
 import time
 
 from mailer.weather_cache import get_cached_weather
-from mailer.content import compute_moon, todays_quote, fetch_pollen
+from mailer.content import (
+    compute_moon,
+    todays_quote,
+    fetch_pollen,
+    fetch_todays_headlines,
+)
 from mailer.templates import build_email
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
@@ -60,7 +65,7 @@ def send_email(to_email, subject, html_body):
 
 
 # -----------------------
-# Fetch Subscribers (RETRY VERSION)
+# Fetch Subscribers
 # -----------------------
 def get_subscribers(retries=3, delay=2):
 
@@ -108,7 +113,6 @@ def main():
 
     subscribers = get_subscribers()
 
-    # ✅ SAFETY EXIT
     if not subscribers:
         print("⚠️ No subscribers found or API unavailable. Exiting safely.")
         return
@@ -140,6 +144,16 @@ def main():
         print(f"🧪 Test recipients: {', '.join(test_emails)}")
         print(f"🧪 Sending test email to {len(subscribers)} matching subscriber(s)\n")
 
+    # -----------------------
+    # 📰 FETCH HEADLINES ONCE
+    # -----------------------
+    headlines = fetch_todays_headlines()
+
+    if headlines:
+        print(f"📰 Total headlines ready: {len(headlines)}")
+    else:
+        print("⚠️ No headlines available today. Email will still send safely.")
+
     grouped = group_by_zip(subscribers)
 
     for zip_code, users in grouped.items():
@@ -147,7 +161,7 @@ def main():
         print(f"\nProcessing ZIP: {zip_code}")
 
         # -----------------------
-        # SHARED DATA (per ZIP)
+        # SHARED DATA PER ZIP
         # -----------------------
         weather = get_cached_weather(zip_code)
 
@@ -158,7 +172,7 @@ def main():
         quote = todays_quote()
 
         # -----------------------
-        # 🧠 COLLECT HOROSCOPES
+        # COLLECT HOROSCOPES
         # -----------------------
         signs = set(
             user["horoscope"]
@@ -187,7 +201,8 @@ def main():
                 horoscopes=user_horoscopes,
                 quote=quote,
                 user_email=email,
-                pollen=pollen
+                pollen=pollen,
+                headlines=headlines,
             )
 
             subject = "Your DailyPulseWatch Brief"

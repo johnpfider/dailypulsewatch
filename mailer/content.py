@@ -4,10 +4,12 @@
 
 import json
 import requests
+import feedparser
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
+from html import unescape
 import time
 
 from astral.moon import phase as moon_phase
@@ -51,6 +53,13 @@ class PollenSignal:
     birch: float
     grass: float
     ragweed: float
+
+
+@dataclass(slots=True)
+class HeadlineSignal:
+    source: str
+    title: str
+    link: str
 
 
 # ============================================================
@@ -111,7 +120,6 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             d = payload["daily"]
             hourly = payload.get("hourly", {})
 
-            # 🌅 FORMAT TIME
             sunrise_raw = d["sunrise"][0]
             sunset_raw = d["sunset"][0]
 
@@ -121,7 +129,6 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             sunrise = sunrise_dt.strftime("%I:%M %p").lstrip("0")
             sunset = sunset_dt.strftime("%I:%M %p").lstrip("0")
 
-            # 🌡️ TEMP + PRECIP
             high_c = d["temperature_2m_max"][0]
             low_c = d["temperature_2m_min"][0]
             precip = d["precipitation_sum"][0]
@@ -129,7 +136,6 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             high_f = round(high_c * 9 / 5 + 32, 1)
             low_f = round(low_c * 9 / 5 + 32, 1)
 
-            # 🌬️ WIND
             wind_speed = float(max(hourly.get("windspeed_10m", [0]) or [0]))
             wind_gust = float(max(hourly.get("windgusts_10m", [0]) or [0]))
 
@@ -154,9 +160,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 print(f"⏳ Retrying weather in {delay} seconds...")
                 time.sleep(delay)
 
-    # 🚨 FINAL FAILURE
     print("🚨 All weather retries failed — using fallback")
-
     raise Exception("Weather API failed after retries")
 
 
@@ -180,7 +184,6 @@ def _daily_peak(values) -> float:
 def adjust_for_season(pollen: PollenSignal) -> PollenSignal:
     month = date.today().month
 
-    # Spring (tree pollen season)
     if month in [3, 4, 5]:
         return PollenSignal(
             alder=max(pollen.alder, 2.0),
@@ -189,7 +192,6 @@ def adjust_for_season(pollen: PollenSignal) -> PollenSignal:
             ragweed=pollen.ragweed,
         )
 
-    # Summer (grass season)
     elif month in [6, 7]:
         return PollenSignal(
             alder=pollen.alder,
@@ -198,7 +200,6 @@ def adjust_for_season(pollen: PollenSignal) -> PollenSignal:
             ragweed=pollen.ragweed,
         )
 
-    # Fall (ragweed season)
     elif month in [8, 9]:
         return PollenSignal(
             alder=pollen.alder,
@@ -257,7 +258,6 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
                 print(f"⏳ Retrying pollen in {delay} seconds...")
                 time.sleep(delay)
 
-    # 🚨 FINAL FAILURE → graceful fallback
     print("🚨 All pollen retries failed — using fallback")
 
     return PollenSignal(
@@ -280,9 +280,6 @@ def pollen_level(value: float) -> str:
         return "Very High"
 
 
-# -----------------------
-# 🌿 Allergy Risk Score
-# -----------------------
 def allergy_risk(pollen) -> str:
     values = [
         getattr(pollen, "alder", 0) or 0,
@@ -303,22 +300,94 @@ def allergy_risk(pollen) -> str:
 
 def pollen_context_line(weather: WeatherSignal) -> str:
 
-    # Rain first
     if weather.precip_mm >= 2:
         return "💡 Rain in the forecast may help reduce pollen levels by washing it out of the air."
 
     elif weather.precip_mm > 0:
         return "💡 Light rain may temporarily reduce pollen levels."
 
-    # Then wind
     if weather.wind_gust >= 20:
         return "💡 Gusty winds may increase pollen spread and worsen allergy symptoms."
 
     elif weather.wind_speed >= 10:
         return "💡 Breezy conditions may carry more pollen through the air."
 
-    # Default
     return "💡 Dry and calm conditions may allow pollen levels to remain steady."
+
+
+# ============================================================
+# HEADLINES / RSS LOGIC
+# ============================================================
+
+BBC_RSS_URL = "https://feeds.bbci.co.uk/news/world/rss.xml"
+MEDPAGE_RSS_URL = "https://www.medpagetoday.com/rss/headlines.xml"
+
+
+def _clean_headline(text: str) -> str:
+    return unescape((text or "").strip())
+
+
+def fetch_rss_headlines(feed_url: str, source_name: str, limit: int) -> list[HeadlineSignal]:
+
+    retries = 3
+    delay = 2
+
+    for attempt in range(1, retries + 1):
+        try:
+            print(f"📰 Fetching {source_name} headlines (attempt {attempt})...")
+
+            feed = feedparser.parse(feed_url)
+
+            if getattr(feed, "bozo", False):
+                print(f"⚠️ {source_name} RSS warning: {getattr(feed, 'bozo_exception', 'Unknown RSS issue')}")
+
+            entries = getattr(feed, "entries", []) or []
+
+            headlines = []
+
+            for entry in entries[:limit]:
+                title = _clean_headline(getattr(entry, "title", ""))
+                link = getattr(entry, "link", "")
+
+                if title and link:
+                    headlines.append(
+                        HeadlineSignal(
+                            source=source_name,
+                            title=title,
+                            link=link,
+                        )
+                    )
+
+            print(f"✅ {source_name} headlines fetched: {len(headlines)}")
+
+            return headlines
+
+        except Exception as e:
+            print(f"❌ {source_name} headlines attempt {attempt} failed: {e}")
+
+            if attempt < retries:
+                print(f"⏳ Retrying {source_name} headlines in {delay} seconds...")
+                time.sleep(delay)
+
+    print(f"🚨 All {source_name} headline retries failed — skipping this feed")
+    return []
+
+
+def fetch_todays_headlines() -> list[HeadlineSignal]:
+
+    bbc = fetch_rss_headlines(
+        feed_url=BBC_RSS_URL,
+        source_name="BBC",
+        limit=3,
+    )
+
+    medpage = fetch_rss_headlines(
+        feed_url=MEDPAGE_RSS_URL,
+        source_name="MedPage Today",
+        limit=2,
+    )
+
+    return bbc + medpage
 
 
 # ============================================================
@@ -378,7 +447,12 @@ def todays_quote():
 # EMAIL CONTENT BUILDER (TEXT VERSION)
 # ============================================================
 
-def build_email_content(zip_code: str, weather: WeatherSignal, pollen: PollenSignal) -> str:
+def build_email_content(
+    zip_code: str,
+    weather: WeatherSignal,
+    pollen: PollenSignal,
+    headlines: Optional[list[HeadlineSignal]] = None
+) -> str:
 
     moon = compute_moon()
     quote = todays_quote()
@@ -410,6 +484,22 @@ Allergy Risk: {allergy_risk(pollen)}
 {context_line}
 """
 
+    headlines = headlines or []
+
+    headlines_section = ""
+
+    if headlines:
+        headline_lines = "\n".join(
+            f"- [{h.source}] {h.title}\n  {h.link}"
+            for h in headlines
+        )
+
+        headlines_section = f"""
+Today's Headlines
+-----------------
+{headline_lines}
+"""
+
     return f"""
 DailyPulseWatch
 
@@ -430,6 +520,7 @@ Commute Weather Watch
 {commute["commute_line"]}
 {commute_details}
 {pollen_section}
+{headlines_section}
 
 Moon
 ----
