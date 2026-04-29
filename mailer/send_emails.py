@@ -13,6 +13,22 @@ API_URL = "https://dailypulsewatch.onrender.com/subscribers"
 
 
 # -----------------------
+# TEST MODE SETTINGS
+# -----------------------
+def is_test_mode():
+    return os.getenv("TEST_MODE", "false").lower() == "true"
+
+
+def get_test_emails():
+    raw = os.getenv("TEST_EMAILS", "")
+    return [
+        email.strip().lower()
+        for email in raw.split(",")
+        if email.strip()
+    ]
+
+
+# -----------------------
 # RESEND EMAIL FUNCTION
 # -----------------------
 def send_email(to_email, subject, html_body):
@@ -99,6 +115,31 @@ def main():
 
     print(f"\nFound {len(subscribers)} subscribers\n")
 
+    # -----------------------
+    # TEST MODE FILTER
+    # -----------------------
+    test_mode = is_test_mode()
+    test_emails = get_test_emails()
+
+    if test_mode:
+        print("🧪 TEST MODE ACTIVE — sending only to test emails")
+
+        if not test_emails:
+            print("⚠️ TEST_MODE is true, but TEST_EMAILS is empty. Exiting safely.")
+            return
+
+        subscribers = [
+            sub for sub in subscribers
+            if sub.get("email", "").lower() in test_emails
+        ]
+
+        if not subscribers:
+            print("⚠️ No matching test subscribers found. Exiting safely.")
+            return
+
+        print(f"🧪 Test recipients: {', '.join(test_emails)}")
+        print(f"🧪 Sending test email to {len(subscribers)} matching subscriber(s)\n")
+
     grouped = group_by_zip(subscribers)
 
     for zip_code, users in grouped.items():
@@ -149,13 +190,18 @@ def main():
                 pollen=pollen
             )
 
+            subject = "Your DailyPulseWatch Brief"
+
+            if test_mode:
+                subject = "[TEST] Your DailyPulseWatch Brief"
+
             print("\n-----------------------")
             print(f"TO: {email}")
             print("-----------------------")
 
             send_email(
                 to_email=email,
-                subject="Your DailyPulseWatch Brief",
+                subject=subject,
                 html_body=html_content
             )
 
