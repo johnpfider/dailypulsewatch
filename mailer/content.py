@@ -319,12 +319,38 @@ def pollen_context_line(weather: WeatherSignal) -> str:
 # HEADLINES / RSS LOGIC
 # ============================================================
 
-GENERAL_NEWS_RSS_URL = "https://www.npr.org/rss/rss.php?id=1001"
+NPR_US_RSS_URL = "https://feeds.npr.org/1003/rss.xml"
+NPR_WORLD_RSS_URL = "https://feeds.npr.org/1004/rss.xml"
 HEALTH_NEWS_RSS_URL = "https://medicalxpress.com/rss-feed/"
+
+
+OPINION_KEYWORDS = [
+    "opinion",
+    "commentary",
+    "editorial",
+    "op-ed",
+    "op ed",
+    "analysis",
+    "perspective",
+    "column",
+    "essay",
+    "review",
+    "critic",
+    "critics",
+]
 
 
 def _clean_headline(text: str) -> str:
     return unescape((text or "").strip())
+
+
+def _is_opinion_like(title: str) -> bool:
+    title_lower = (title or "").lower()
+
+    return any(
+        keyword in title_lower
+        for keyword in OPINION_KEYWORDS
+    )
 
 
 def fetch_rss_headlines(feed_url: str, source_name: str, limit: int) -> list[HeadlineSignal]:
@@ -345,18 +371,27 @@ def fetch_rss_headlines(feed_url: str, source_name: str, limit: int) -> list[Hea
 
             headlines = []
 
-            for entry in entries[:limit]:
+            for entry in entries:
                 title = _clean_headline(getattr(entry, "title", ""))
                 link = getattr(entry, "link", "")
 
-                if title and link:
-                    headlines.append(
-                        HeadlineSignal(
-                            source=source_name,
-                            title=title,
-                            link=link,
-                        )
+                if not title or not link:
+                    continue
+
+                if _is_opinion_like(title):
+                    print(f"🚫 Skipping opinion-like headline: {title}")
+                    continue
+
+                headlines.append(
+                    HeadlineSignal(
+                        source=source_name,
+                        title=title,
+                        link=link,
                     )
+                )
+
+                if len(headlines) >= limit:
+                    break
 
             print(f"✅ {source_name} headlines fetched: {len(headlines)}")
 
@@ -375,10 +410,16 @@ def fetch_rss_headlines(feed_url: str, source_name: str, limit: int) -> list[Hea
 
 def fetch_todays_headlines() -> list[HeadlineSignal]:
 
-    general = fetch_rss_headlines(
-        feed_url=GENERAL_NEWS_RSS_URL,
-        source_name="NPR",
-        limit=3,
+    international = fetch_rss_headlines(
+        feed_url=NPR_WORLD_RSS_URL,
+        source_name="NPR World",
+        limit=1,
+    )
+
+    us = fetch_rss_headlines(
+        feed_url=NPR_US_RSS_URL,
+        source_name="NPR U.S.",
+        limit=2,
     )
 
     health = fetch_rss_headlines(
@@ -387,7 +428,7 @@ def fetch_todays_headlines() -> list[HeadlineSignal]:
         limit=2,
     )
 
-    return general + health
+    return international + us + health
 
 
 # ============================================================
