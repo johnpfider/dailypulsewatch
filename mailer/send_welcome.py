@@ -6,6 +6,7 @@ from mailer.content import (
     compute_moon,
     todays_quote,
     fetch_pollen,
+    fetch_todays_headlines,
     pollen_level,
     pollen_context_line,
 )
@@ -30,6 +31,7 @@ def send_welcome_email(email, zip_code, horoscope):
 
         moon = compute_moon()
         quote = todays_quote()
+        headlines = fetch_todays_headlines()
 
         horoscope_map = {}
         if horoscope:
@@ -53,7 +55,7 @@ def send_welcome_email(email, zip_code, horoscope):
         commute_line = "No major weather-related commute concerns."
 
         # -----------------------
-        # 🌿 POLLEN HTML (WITH CONTEXT)
+        # 🌿 POLLEN HTML
         # -----------------------
         pollen_html = ""
 
@@ -79,6 +81,43 @@ def send_welcome_email(email, zip_code, horoscope):
                 <p style="margin-top:12px; font-size:13px; color:#4B5563;">
                     {context_line}
                 </p>
+            </div>
+            """
+
+        # -----------------------
+        # 📰 HEADLINES HTML
+        # -----------------------
+        headlines_html = ""
+
+        if headlines:
+            items = ""
+
+            for h in headlines:
+                items += f"""
+                <p style="margin:0 0 12px 0;">
+                    <strong style="color:#374151;">{h.source}</strong><br/>
+                    <a href="{h.link}" style="color:#2563EB; text-decoration:none;">
+                        {h.title}
+                    </a>
+                </p>
+                """
+
+            headlines_html = f"""
+            <div style="
+                margin-top:24px;
+                padding:18px;
+                border:1px solid #E5E7EB;
+                border-radius:14px;
+                background:#FFFFFF;
+                box-shadow:0 6px 14px rgba(0,0,0,0.06);
+            ">
+                <h4 style="margin-top:0;">📰 Today’s Headlines</h4>
+
+                <p style="margin-top:0; color:#4B5563; font-size:13px;">
+                    A quick skim of general and healthcare headlines.
+                </p>
+
+                {items}
             </div>
             """
 
@@ -124,7 +163,7 @@ def send_welcome_email(email, zip_code, horoscope):
                 box-shadow:0 12px 28px rgba(0,0,0,0.12);
             ">
 
-                <h2>👋 Welcome to DailyPulseWatch</h2>
+                <h2 style="margin-top:0;">👋 Welcome to DailyPulseWatch</h2>
 
                 <p>You're officially on the list.</p>
 
@@ -133,25 +172,33 @@ def send_welcome_email(email, zip_code, horoscope):
                     designed to help you start your day with clarity.
                 </p>
 
-                <h4>🌤 Weather</h4>
+                <h4 style="margin-top:20px;">🌤 Weather</h4>
                 <p>{weather_line}</p>
 
-                <h4>🌅 Sun</h4>
+                <h4 style="margin-top:20px;">🌅 Sun</h4>
                 <p>
                     Sunrise: {sunrise}<br/>
                     Sunset: {sunset}
                 </p>
 
-                <hr>
+                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-                <div style="padding:18px; background:#F9FAFB; border-radius:14px;">
-                    <h4>🚗 Commute Weather Watch</h4>
+                <div style="
+                    margin-top:10px;
+                    padding:18px;
+                    background:#F9FAFB;
+                    border:1px solid #E5E7EB;
+                    border-radius:14px;
+                ">
+                    <h4 style="margin-top:0;">🚗 Commute Weather Watch</h4>
                     <p>{commute_line}</p>
                 </div>
 
                 {pollen_html}
 
-                <hr>
+                {headlines_html}
+
+                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
                 <h4>🌙 Moon</h4>
                 <p>
@@ -161,7 +208,7 @@ def send_welcome_email(email, zip_code, horoscope):
 
                 {horoscope_html}
 
-                <hr>
+                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
                 <h4>💬 Quote</h4>
                 <p>
@@ -177,7 +224,7 @@ def send_welcome_email(email, zip_code, horoscope):
                     </p>
 
                     <p style="font-size:12px;">
-                        <a href="{unsubscribe_link}">
+                        <a href="{unsubscribe_link}" style="color:#2563EB; text-decoration:none;">
                             Unsubscribe
                         </a>
                     </p>

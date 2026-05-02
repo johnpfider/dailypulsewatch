@@ -319,8 +319,8 @@ def pollen_context_line(weather: WeatherSignal) -> str:
 # HEADLINES / RSS LOGIC
 # ============================================================
 
-BBC_RSS_URL = "https://feeds.bbci.co.uk/news/world/rss.xml"
-MEDPAGE_RSS_URL = "https://www.medpagetoday.com/rss/headlines.xml"
+REUTERS_RSS_URL = "https://www.reuters.com/world/rss"
+HEALTHDAY_RSS_URL = "https://consumer.healthday.com/rss"
 
 
 def _clean_headline(text: str) -> str:
@@ -375,19 +375,19 @@ def fetch_rss_headlines(feed_url: str, source_name: str, limit: int) -> list[Hea
 
 def fetch_todays_headlines() -> list[HeadlineSignal]:
 
-    bbc = fetch_rss_headlines(
-        feed_url=BBC_RSS_URL,
-        source_name="BBC",
+    reuters = fetch_rss_headlines(
+        feed_url=REUTERS_RSS_URL,
+        source_name="Reuters",
         limit=3,
     )
 
-    medpage = fetch_rss_headlines(
-        feed_url=MEDPAGE_RSS_URL,
-        source_name="MedPage Today",
+    healthday = fetch_rss_headlines(
+        feed_url=HEALTHDAY_RSS_URL,
+        source_name="HealthDay",
         limit=2,
     )
 
-    return bbc + medpage
+    return reuters + healthday
 
 
 # ============================================================
