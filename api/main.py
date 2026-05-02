@@ -68,7 +68,7 @@ def init_db():
 # Subscribe
 # -----------------------
 
-@app.post("/subscribe")
+@app.post("/subscribe", response_class=HTMLResponse)
 def subscribe(
     email: str = Form(...),
     zip: str = Form(...),
@@ -123,7 +123,51 @@ def subscribe(
     except Exception as e:
         print(f"Welcome email error: {e}")
 
-    return {"status": message, "email": email}
+    if message == "reactivated":
+        heading = "✅ Welcome back!"
+        body_text = "Your DailyPulseWatch subscription has been reactivated."
+    else:
+        heading = "✅ Success!"
+        body_text = "Thank you for signing up for DailyPulseWatch."
+
+    return f"""
+    <html>
+    <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:40px 20px;">
+
+        <div style="
+            max-width:520px;
+            margin:60px auto;
+            background:#FFFFFF;
+            padding:32px;
+            border-radius:18px;
+            border:1px solid #E5E7EB;
+            box-shadow:0 12px 28px rgba(0,0,0,0.10);
+            text-align:center;
+        ">
+
+            <h2 style="margin-top:0;">{heading}</h2>
+
+            <p style="font-size:18px;">
+                {body_text}
+            </p>
+
+            <p style="color:#4B5563; line-height:1.5;">
+                Your nurse-focused daily briefing is on its way.
+            </p>
+
+            <p style="margin-top:20px; font-size:14px; color:#6B7280;">
+                Check your inbox for your welcome email.
+            </p>
+
+            <p style="margin-top:28px; font-size:12px; color:#9CA3AF;">
+                Built by a nurse, for nurses.
+            </p>
+
+        </div>
+
+    </body>
+    </html>
+    """
 
 
 # -----------------------
