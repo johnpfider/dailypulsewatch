@@ -43,6 +43,14 @@ class WeatherSignal:
     freezing: bool
     sunrise: str
     sunset: str
+
+    tomorrow_high_f: float | None = None
+    tomorrow_low_f: float | None = None
+    tomorrow_precip_mm: float | None = None
+    tomorrow_freezing: bool = False
+    tomorrow_sunrise: str | None = None
+    tomorrow_sunset: str | None = None
+
     wind_speed: float = 0.0
     wind_gust: float = 0.0
 
@@ -67,7 +75,6 @@ class HeadlineSignal:
 # ============================================================
 
 def compute_moon() -> MoonSignal:
-
     age = float(moon_phase(date.today()))
 
     if age < 1 or age > 28.5:
@@ -93,7 +100,6 @@ def compute_moon() -> MoonSignal:
 # ============================================================
 
 def fetch_weather(lat: float, lon: float) -> WeatherSignal:
-
     url = "https://api.open-meteo.com/v1/forecast"
 
     params = {
@@ -101,7 +107,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
         "longitude": lon,
         "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,sunrise,sunset",
         "hourly": "windspeed_10m,windgusts_10m",
-        "forecast_days": 1,
+        "forecast_days": 2,
         "timezone": "auto",
     }
 
@@ -109,7 +115,6 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
     delay = 2
 
     for attempt in range(1, retries + 1):
-
         try:
             print(f"🌦️ Fetching weather (attempt {attempt})...")
 
@@ -120,11 +125,11 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             d = payload["daily"]
             hourly = payload.get("hourly", {})
 
-            sunrise_raw = d["sunrise"][0]
-            sunset_raw = d["sunset"][0]
-
-            sunrise_dt = datetime.fromisoformat(sunrise_raw)
-            sunset_dt = datetime.fromisoformat(sunset_raw)
+            # -----------------------
+            # TODAY
+            # -----------------------
+            sunrise_dt = datetime.fromisoformat(d["sunrise"][0])
+            sunset_dt = datetime.fromisoformat(d["sunset"][0])
 
             sunrise = sunrise_dt.strftime("%I:%M %p").lstrip("0")
             sunset = sunset_dt.strftime("%I:%M %p").lstrip("0")
@@ -135,22 +140,66 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
 
             high_f = round(high_c * 9 / 5 + 32, 1)
             low_f = round(low_c * 9 / 5 + 32, 1)
+            precip_mm = round(precip, 1)
 
-            wind_speed = float(max(hourly.get("windspeed_10m", [0]) or [0]))
-            wind_gust = float(max(hourly.get("windgusts_10m", [0]) or [0]))
+            # -----------------------
+            # TOMORROW
+            # -----------------------
+            tomorrow_high_f = None
+            tomorrow_low_f = None
+            tomorrow_precip_mm = None
+            tomorrow_freezing = False
+            tomorrow_sunrise = None
+            tomorrow_sunset = None
+
+            if len(d.get("temperature_2m_max", [])) > 1:
+                tomorrow_high_c = d["temperature_2m_max"][1]
+                tomorrow_low_c = d["temperature_2m_min"][1]
+                tomorrow_precip = d["precipitation_sum"][1]
+
+                tomorrow_high_f = round(tomorrow_high_c * 9 / 5 + 32, 1)
+                tomorrow_low_f = round(tomorrow_low_c * 9 / 5 + 32, 1)
+                tomorrow_precip_mm = round(tomorrow_precip, 1)
+                tomorrow_freezing = tomorrow_low_f <= 32
+
+                tomorrow_sunrise_dt = datetime.fromisoformat(d["sunrise"][1])
+                tomorrow_sunset_dt = datetime.fromisoformat(d["sunset"][1])
+
+                tomorrow_sunrise = tomorrow_sunrise_dt.strftime("%I:%M %p").lstrip("0")
+                tomorrow_sunset = tomorrow_sunset_dt.strftime("%I:%M %p").lstrip("0")
+
+            # -----------------------
+            # WIND — today only
+            # -----------------------
+            wind_speed_values = hourly.get("windspeed_10m", [0]) or [0]
+            wind_gust_values = hourly.get("windgusts_10m", [0]) or [0]
+
+            today_wind_speed_values = wind_speed_values[:24]
+            today_wind_gust_values = wind_gust_values[:24]
+
+            wind_speed = float(max(today_wind_speed_values or [0]))
+            wind_gust = float(max(today_wind_gust_values or [0]))
 
             print("✅ Weather fetched successfully")
             print(f"🌬️ WIND: speed={wind_speed}, gust={wind_gust}")
+            print(f"🌤️ TODAY: high={high_f}, low={low_f}")
+            print(f"🌤️ TOMORROW: high={tomorrow_high_f}, low={tomorrow_low_f}")
 
             return WeatherSignal(
                 high_f=high_f,
                 low_f=low_f,
-                precip_mm=round(precip, 1),
+                precip_mm=precip_mm,
                 freezing=low_f <= 32,
                 sunrise=sunrise,
                 sunset=sunset,
+                tomorrow_high_f=tomorrow_high_f,
+                tomorrow_low_f=tomorrow_low_f,
+                tomorrow_precip_mm=tomorrow_precip_mm,
+                tomorrow_freezing=tomorrow_freezing,
+                tomorrow_sunrise=tomorrow_sunrise,
+                tomorrow_sunset=tomorrow_sunset,
                 wind_speed=wind_speed,
-                wind_gust=wind_gust
+                wind_gust=wind_gust,
             )
 
         except Exception as e:
@@ -169,7 +218,6 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
 # ============================================================
 
 def _daily_peak(values) -> float:
-
     if not values:
         return 0.0
 
@@ -212,7 +260,6 @@ def adjust_for_season(pollen: PollenSignal) -> PollenSignal:
 
 
 def fetch_pollen(lat: float, lon: float) -> PollenSignal:
-
     url = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
     params = {
@@ -269,7 +316,6 @@ def fetch_pollen(lat: float, lon: float) -> PollenSignal:
 
 
 def pollen_level(value: float) -> str:
-
     if value < 0.5:
         return "Low"
     elif value < 2:
@@ -299,7 +345,6 @@ def allergy_risk(pollen) -> str:
 
 
 def pollen_context_line(weather: WeatherSignal) -> str:
-
     if weather.precip_mm >= 2:
         return "💡 Rain in the forecast may help reduce pollen levels by washing it out of the air."
 
@@ -354,7 +399,6 @@ def _is_opinion_like(title: str) -> bool:
 
 
 def fetch_rss_headlines(feed_url: str, source_name: str, limit: int) -> list[HeadlineSignal]:
-
     retries = 3
     delay = 2
 
@@ -409,7 +453,6 @@ def fetch_rss_headlines(feed_url: str, source_name: str, limit: int) -> list[Hea
 
 
 def fetch_todays_headlines() -> list[HeadlineSignal]:
-
     international = fetch_rss_headlines(
         feed_url=NPR_WORLD_RSS_URL,
         source_name="NPR World",
@@ -436,9 +479,7 @@ def fetch_todays_headlines() -> list[HeadlineSignal]:
 # ============================================================
 
 def compute_commute(weather: WeatherSignal):
-
     if weather.freezing and weather.precip_mm == 0:
-
         return {
             "commute_line": "Cold temperatures are present, but dry conditions reduce the risk of slick roads.",
             "ice_risk": "Low",
@@ -447,7 +488,6 @@ def compute_commute(weather: WeatherSignal):
         }
 
     elif weather.freezing and weather.precip_mm > 0:
-
         return {
             "commute_line": "Cold temperatures combined with precipitation may make the commute more hazardous.",
             "ice_risk": "Elevated",
@@ -456,7 +496,6 @@ def compute_commute(weather: WeatherSignal):
         }
 
     else:
-
         return {
             "commute_line": "No major weather-related commute concerns.",
             "ice_risk": "None",
@@ -470,7 +509,6 @@ def compute_commute(weather: WeatherSignal):
 # ============================================================
 
 def todays_quote():
-
     if not QUOTES_FILE.exists():
         return {"text": "", "author": ""}
 
@@ -525,6 +563,16 @@ Allergy Risk: {allergy_risk(pollen)}
 {context_line}
 """
 
+    tomorrow_weather = ""
+
+    if getattr(weather, "tomorrow_high_f", None) is not None:
+        tomorrow_weather = f"""
+Tomorrow Weather
+----------------
+High: {weather.tomorrow_high_f}°F
+Low: {weather.tomorrow_low_f}°F
+"""
+
     headlines = headlines or []
 
     headlines_section = ""
@@ -548,13 +596,20 @@ ZIP: {zip_code}
 
 Weather
 -------
+Today
 High: {weather.high_f}°F
 Low: {weather.low_f}°F
+{tomorrow_weather}
 
 Sun
 ---
+Today
 Sunrise: {weather.sunrise}
 Sunset: {weather.sunset}
+
+Tomorrow
+Sunrise: {getattr(weather, "tomorrow_sunrise", "—")}
+Sunset: {getattr(weather, "tomorrow_sunset", "—")}
 
 Commute Weather Watch
 ---------------------

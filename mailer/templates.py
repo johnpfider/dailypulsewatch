@@ -16,10 +16,38 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
         weather_line = "Weather data is temporarily unavailable."
         sunrise = "—"
         sunset = "—"
+        tomorrow_sun_html = ""
     else:
-        weather_line = f"High: {weather.high_f}°F<br/>Low: {weather.low_f}°F"
+        tomorrow_weather_line = ""
+
+        if getattr(weather, "tomorrow_high_f", None) is not None:
+            tomorrow_weather_line = f"""
+            <div style="margin-top:12px;">
+                <strong>Tomorrow</strong><br/>
+                High: {weather.tomorrow_high_f}°F<br/>
+                Low: {weather.tomorrow_low_f}°F
+            </div>
+            """
+
+        weather_line = f"""
+        <strong>Today</strong><br/>
+        High: {weather.high_f}°F<br/>
+        Low: {weather.low_f}°F
+        {tomorrow_weather_line}
+        """
+
         sunrise = weather.sunrise
         sunset = weather.sunset
+
+        tomorrow_sun_html = ""
+
+        if getattr(weather, "tomorrow_sunrise", None):
+            tomorrow_sun_html = f"""
+            <br/><br/>
+            <strong>Tomorrow</strong><br/>
+            Sunrise: {weather.tomorrow_sunrise}<br/>
+            Sunset: {weather.tomorrow_sunset}
+            """
 
     # -----------------------
     # COMMUTE LOGIC (SAFE)
@@ -181,8 +209,10 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
 
             <h4 style="margin-top:20px;">🌅 Sun</h4>
             <p>
+                <strong>Today</strong><br/>
                 Sunrise: {sunrise}<br/>
                 Sunset: {sunset}
+                {tomorrow_sun_html}
             </p>
 
             <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">

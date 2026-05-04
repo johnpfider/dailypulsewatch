@@ -27,6 +27,16 @@ def get_cached_weather(zip_code: str):
             freezing = False
             sunrise = None
             sunset = None
-            unavailable = True 
+
+            tomorrow_high_f = None
+            tomorrow_low_f = None
+            tomorrow_precip_mm = None
+            tomorrow_freezing = False
+            tomorrow_sunrise = None
+            tomorrow_sunset = None
+
+            wind_speed = 0.0
+            wind_gust = 0.0
+            unavailable = True
 
         return FallbackWeather()
