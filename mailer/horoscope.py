@@ -14,24 +14,16 @@ CACHE_FILE = Path(__file__).resolve().parents[1] / "data" / "horoscope_cache.jso
 # =========================
 def fetch_horoscope(sign: str) -> str:
     """
-    Fetch daily horoscope from Aztro.
+    Fetch daily horoscope from Ohmanda's free Astrology.com API.
 
-    Aztro uses POST, not GET.
-    API docs:
-    POST https://aztro.sameerkumar.website?sign=<sign>&day=today
+    Example:
+    https://ohmanda.com/api/horoscope/pisces
     """
 
-    url = "https://aztro.sameerkumar.website"
+    sign = sign.lower().strip()
+    url = f"https://ohmanda.com/api/horoscope/{sign}"
 
-    r = requests.post(
-        url,
-        params={
-            "sign": sign.lower(),
-            "day": "today"
-        },
-        timeout=10
-    )
-
+    r = requests.get(url, timeout=10)
     r.raise_for_status()
 
     data = r.json()
@@ -39,35 +31,9 @@ def fetch_horoscope(sign: str) -> str:
     if not isinstance(data, dict):
         return ""
 
-    description = data.get("description", "")
-    mood = data.get("mood", "")
-    lucky_number = data.get("lucky_number", "")
-    lucky_color = data.get("color", "")
-    compatibility = data.get("compatibility", "")
+    horoscope_text = data.get("horoscope", "")
 
-    parts = []
-
-    if description:
-        parts.append(description)
-
-    extras = []
-
-    if mood:
-        extras.append(f"Mood: {mood}")
-
-    if lucky_number:
-        extras.append(f"Lucky number: {lucky_number}")
-
-    if lucky_color:
-        extras.append(f"Lucky color: {lucky_color}")
-
-    if compatibility:
-        extras.append(f"Compatibility: {compatibility}")
-
-    if extras:
-        parts.append(" | ".join(extras))
-
-    return "\n\n".join(parts)
+    return horoscope_text.strip()
 
 
 # =========================
@@ -100,9 +66,8 @@ def get_horoscopes(signs: set[str]) -> dict[str, str]:
     results = {}
 
     for sign in signs:
-        key = sign.lower()
+        key = sign.lower().strip()
 
-        # If cached today → reuse
         if key in cache and cache[key]["date"] == today:
             results[key] = cache[key]["text"]
         else:
