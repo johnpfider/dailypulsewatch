@@ -13,27 +13,61 @@ CACHE_FILE = Path(__file__).resolve().parents[1] / "data" / "horoscope_cache.jso
 # FETCH FROM API (SAFE)
 # =========================
 def fetch_horoscope(sign: str) -> str:
-    url = "https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily"
+    """
+    Fetch daily horoscope from Aztro.
 
-    r = requests.get(
+    Aztro uses POST, not GET.
+    API docs:
+    POST https://aztro.sameerkumar.website?sign=<sign>&day=today
+    """
+
+    url = "https://aztro.sameerkumar.website"
+
+    r = requests.post(
         url,
-        params={"sign": sign.lower(), "day": "today"},
+        params={
+            "sign": sign.lower(),
+            "day": "today"
+        },
         timeout=10
     )
+
     r.raise_for_status()
 
     data = r.json()
 
-    # 🔒 SAFE PARSING (prevents 'horoscope_data' crash)
-    if isinstance(data, dict):
-        if "data" in data and isinstance(data["data"], dict):
-            return (
-                data["data"].get("horoscope_data")
-                or data["data"].get("horoscope")
-                or ""
-            )
+    if not isinstance(data, dict):
+        return ""
 
-    return ""
+    description = data.get("description", "")
+    mood = data.get("mood", "")
+    lucky_number = data.get("lucky_number", "")
+    lucky_color = data.get("color", "")
+    compatibility = data.get("compatibility", "")
+
+    parts = []
+
+    if description:
+        parts.append(description)
+
+    extras = []
+
+    if mood:
+        extras.append(f"Mood: {mood}")
+
+    if lucky_number:
+        extras.append(f"Lucky number: {lucky_number}")
+
+    if lucky_color:
+        extras.append(f"Lucky color: {lucky_color}")
+
+    if compatibility:
+        extras.append(f"Compatibility: {compatibility}")
+
+    if extras:
+        parts.append(" | ".join(extras))
+
+    return "\n\n".join(parts)
 
 
 # =========================
