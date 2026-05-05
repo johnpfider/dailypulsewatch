@@ -10,45 +10,33 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
     headlines = headlines or []
 
     # -----------------------
-    # WEATHER SUMMARY (SAFE)
+    # WEATHER SUMMARY (SAFE + GMAIL-FRIENDLY)
     # -----------------------
     if getattr(weather, "unavailable", False):
         weather_line = "Weather data is temporarily unavailable."
-        sunrise = "—"
-        sunset = "—"
-        tomorrow_sun_html = ""
+        sun_line = "Sunrise: —<br/>Sunset: —"
     else:
-        tomorrow_weather_line = ""
-
-        if getattr(weather, "tomorrow_high_f", None) is not None:
-            tomorrow_weather_line = f"""
-            <div style="margin-top:12px;">
-                <strong>Tomorrow</strong><br/>
-                <span style="color:#374151;">{getattr(weather, "tomorrow_condition", "Weather conditions unavailable")}</span><br/>
-                High: {weather.tomorrow_high_f}°F<br/>
-                Low: {weather.tomorrow_low_f}°F
-            </div>
-            """
+        today_condition = getattr(weather, "condition", "Weather conditions unavailable")
+        tomorrow_condition = getattr(weather, "tomorrow_condition", "Weather conditions unavailable")
 
         weather_line = f"""
-        <strong>Today</strong><br/>
-        <span style="color:#374151;">{getattr(weather, "condition", "Weather conditions unavailable")}</span><br/>
-        High: {weather.high_f}°F<br/>
-        Low: {weather.low_f}°F
-        {tomorrow_weather_line}
+        <strong>Today:</strong> {today_condition}<br/>
+        High: {weather.high_f}°F | Low: {weather.low_f}°F
         """
 
-        sunrise = weather.sunrise
-        sunset = weather.sunset
+        if getattr(weather, "tomorrow_high_f", None) is not None:
+            weather_line += f"""
+            <br/><strong>Tomorrow:</strong> {tomorrow_condition}<br/>
+            High: {weather.tomorrow_high_f}°F | Low: {weather.tomorrow_low_f}°F
+            """
 
-        tomorrow_sun_html = ""
+        sun_line = f"""
+        <strong>Today:</strong> Sunrise {weather.sunrise} | Sunset {weather.sunset}
+        """
 
         if getattr(weather, "tomorrow_sunrise", None):
-            tomorrow_sun_html = f"""
-            <br/><br/>
-            <strong>Tomorrow</strong><br/>
-            Sunrise: {weather.tomorrow_sunrise}<br/>
-            Sunset: {weather.tomorrow_sunset}
+            sun_line += f"""
+            <br/><strong>Tomorrow:</strong> Sunrise {weather.tomorrow_sunrise} | Sunset {weather.tomorrow_sunset}
             """
 
     # -----------------------
@@ -76,17 +64,15 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
             precip_in = round(weather.precip_mm * 0.03937, 2)
 
             commute_details_html = f"""
-            <div style="border-top:1px solid #E5E7EB; padding-top:10px; margin-top:10px;">
-                <p style="margin:0;">
-                    <strong>Precipitation:</strong> {precip_in} in<br/>
-                    <strong>Black Ice Risk:</strong> {ice_risk}
-                </p>
-                <p style="margin-top:8px;">{ice_text}</p>
-            </div>
+            <p style="margin:10px 0 0 0; padding-top:10px; border-top:1px solid #E5E7EB;">
+                <strong>Precipitation:</strong> {precip_in} in<br/>
+                <strong>Black Ice Risk:</strong> {ice_risk}<br/>
+                {ice_text}
+            </p>
             """
 
     # -----------------------
-    # 🌿 POLLEN SECTION
+    # POLLEN SECTION
     # -----------------------
     pollen_html = ""
 
@@ -95,34 +81,21 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
         context_line = pollen_context_line(weather)
 
         pollen_html = f"""
-        <div style="
-            margin-top:20px;
-            padding:18px;
-            border:1px solid #E5E7EB;
-            border-radius:14px;
-            background:#F9FAFB;
-        ">
-            <h4 style="margin-top:0;">🌿 Pollen Levels</h4>
-
-            <p style="margin:0 0 10px 0;">
-                <strong>Allergy Risk:</strong> {risk}
-            </p>
-
+        <div style="margin-top:18px; padding:16px; border:1px solid #E5E7EB; border-radius:14px; background:#F9FAFB;">
+            <h4 style="margin:0 0 10px 0;">🌿 Pollen Levels</h4>
+            <p style="margin:0 0 10px 0;"><strong>Allergy Risk:</strong> {risk}</p>
             <p style="margin:0;">
                 Alder: {pollen_level(getattr(pollen, 'alder', 0))}<br/>
                 Birch: {pollen_level(getattr(pollen, 'birch', 0))}<br/>
                 Grass: {pollen_level(getattr(pollen, 'grass', 0))}<br/>
                 Ragweed: {pollen_level(getattr(pollen, 'ragweed', 0))}
             </p>
-
-            <p style="margin-top:12px; font-size:13px; color:#4B5563;">
-                {context_line}
-            </p>
+            <p style="margin:10px 0 0 0; font-size:13px; color:#4B5563;">{context_line}</p>
         </div>
         """
 
     # -----------------------
-    # 📰 HEADLINES SECTION
+    # HEADLINES SECTION
     # -----------------------
     headlines_html = ""
 
@@ -133,27 +106,16 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
             items += f"""
             <p style="margin:0 0 12px 0;">
                 <strong style="color:#374151;">{h.source}</strong><br/>
-                <a href="{h.link}" style="color:#2563EB; text-decoration:none;">
-                    {h.title}
-                </a>
+                <a href="{h.link}" style="color:#2563EB; text-decoration:none;">{h.title}</a>
             </p>
             """
 
         headlines_html = f"""
-        <div style="
-            margin-top:24px;
-            padding:18px;
-            border:1px solid #E5E7EB;
-            border-radius:14px;
-            background:#FFFFFF;
-            box-shadow:0 6px 14px rgba(0,0,0,0.06);
-        ">
-            <h4 style="margin-top:0;">📰 Today’s Headlines</h4>
-
-            <p style="margin-top:0; color:#4B5563; font-size:13px;">
+        <div style="margin-top:20px; padding:16px; border:1px solid #E5E7EB; border-radius:14px; background:#FFFFFF;">
+            <h4 style="margin:0 0 10px 0;">📰 Today’s Headlines</h4>
+            <p style="margin:0 0 12px 0; color:#4B5563; font-size:13px;">
                 A quick skim of general and healthcare headlines.
             </p>
-
             {items}
         </div>
         """
@@ -165,20 +127,14 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
 
     if horoscopes:
         items = "".join(
-            f"<p style='margin-bottom:12px;'><strong>{sign.title()}</strong><br/>{text}</p>"
+            f"<p style='margin:0 0 12px 0;'><strong>{sign.title()}</strong><br/>{text}</p>"
             for sign, text in horoscopes.items()
             if text
         )
 
         horoscope_html = f"""
-        <div style="
-            margin-top:24px;
-            padding:18px;
-            border:1px solid #E5E7EB;
-            border-radius:14px;
-            box-shadow:0 6px 14px rgba(0,0,0,0.08);
-        ">
-            <h4 style="margin-top:0;">🔮 Optional Horoscope</h4>
+        <div style="margin-top:20px; padding:16px; border:1px solid #E5E7EB; border-radius:14px;">
+            <h4 style="margin:0 0 10px 0;">🔮 Optional Horoscope</h4>
             {items}
         </div>
         """
@@ -190,44 +146,25 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
     <html>
     <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:20px;">
 
-        <div style="
-            max-width:640px;
-            margin:auto;
-            background:#FFFFFF;
-            padding:28px;
-            border-radius:18px;
-            border:1px solid #E5E7EB;
-            box-shadow:0 12px 28px rgba(0,0,0,0.12);
-        ">
+        <div style="max-width:640px; margin:auto; background:#FFFFFF; padding:28px; border-radius:18px; border:1px solid #E5E7EB;">
 
-            <h2 style="margin-top:0;">🌅 DailyPulseWatch</h2>
+            <h2 style="margin:0 0 16px 0;">🌅 DailyPulseWatch</h2>
 
-            <p style="margin-bottom:20px;">
+            <p style="margin:0 0 20px 0;">
                 Here’s your daily briefing to help you start your day with clarity.
             </p>
 
-            <h4 style="margin-top:20px;">🌤 Weather</h4>
-            <p>{weather_line}</p>
+            <h4 style="margin:20px 0 8px 0;">🌤 Weather</h4>
+            <p style="margin:0;">{weather_line}</p>
 
-            <h4 style="margin-top:20px;">🌅 Sun</h4>
-            <p>
-                <strong>Today</strong><br/>
-                Sunrise: {sunrise}<br/>
-                Sunset: {sunset}
-                {tomorrow_sun_html}
-            </p>
+            <h4 style="margin:20px 0 8px 0;">🌅 Sun</h4>
+            <p style="margin:0;">{sun_line}</p>
 
             <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-            <div style="
-                margin-top:10px;
-                padding:18px;
-                background:#F9FAFB;
-                border:1px solid #E5E7EB;
-                border-radius:14px;
-            ">
-                <h4 style="margin-top:0;">🚗 Commute Weather Watch</h4>
-                <p>{commute_line}</p>
+            <div style="padding:16px; background:#F9FAFB; border:1px solid #E5E7EB; border-radius:14px;">
+                <h4 style="margin:0 0 10px 0;">🚗 Commute Weather Watch</h4>
+                <p style="margin:0;">{commute_line}</p>
                 {commute_details_html}
             </div>
 
@@ -237,8 +174,8 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
 
             <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-            <h4>🌙 Moon</h4>
-            <p>
+            <h4 style="margin:0 0 8px 0;">🌙 Moon</h4>
+            <p style="margin:0;">
                 <strong>{moon.phase}</strong><br/>
                 <em>{moon.meaning}</em>
             </p>
@@ -247,20 +184,20 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
 
             <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-            <h4>💬 Quote</h4>
-            <p>
+            <h4 style="margin:0 0 8px 0;">💬 Quote</h4>
+            <p style="margin:0;">
                 “{quote.get('text','')}”<br/>
                 — {quote.get('author','')}
             </p>
 
-            <div style="margin-top:28px;">
-                <p><strong>Built by a nurse, for nurses.</strong></p>
+            <div style="margin-top:24px;">
+                <p style="margin:0 0 10px 0;"><strong>Built by a nurse, for nurses.</strong></p>
 
-                <p style="color:#6B7280; font-size:12px;">
+                <p style="color:#6B7280; font-size:12px; margin:0 0 10px 0;">
                     You’re receiving this because you signed up for DailyPulseWatch.
                 </p>
 
-                <p style="margin-top:10px; font-size:12px;">
+                <p style="font-size:12px; margin:0;">
                     <a href="https://dailypulsewatch.onrender.com/unsubscribe?email={user_email}"
                        style="color:#2563EB; text-decoration:none;">
                        Unsubscribe
