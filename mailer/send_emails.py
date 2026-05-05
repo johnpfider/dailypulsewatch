@@ -14,7 +14,8 @@ from mailer.templates import build_email
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
 
-API_URL = "https://dailypulsewatch.onrender.com/subscribers"
+
+API_URL = "https://dailypulsewatch.onrender.com/internal/subscribers"
 
 
 # -----------------------
@@ -31,6 +32,21 @@ def get_test_emails():
         for email in raw.split(",")
         if email.strip()
     ]
+
+
+# -----------------------
+# ADMIN API SETTINGS
+# -----------------------
+def get_admin_headers():
+    admin_key = os.getenv("ADMIN_API_KEY")
+
+    if not admin_key:
+        print("⚠️ ADMIN_API_KEY is missing from environment variables.")
+        return {}
+
+    return {
+        "X-Admin-Key": admin_key
+    }
 
 
 # -----------------------
@@ -69,16 +85,30 @@ def send_email(to_email, subject, html_body):
 # -----------------------
 def get_subscribers(retries=3, delay=2):
 
+    headers = get_admin_headers()
+
+    if not headers:
+        print("🚨 Cannot fetch subscribers without ADMIN_API_KEY. Exiting safely.")
+        return []
+
     for attempt in range(1, retries + 1):
 
         try:
-            print(f"📡 Fetching subscribers (attempt {attempt})...")
+            print(f"📡 Fetching subscribers securely (attempt {attempt})...")
 
-            r = requests.get(API_URL, timeout=5)
+            r = requests.get(
+                API_URL,
+                headers=headers,
+                timeout=5
+            )
 
             if r.status_code == 200:
                 print("✅ Subscribers fetched successfully")
                 return r.json()
+
+            elif r.status_code == 401:
+                print("🚨 Unauthorized. Check ADMIN_API_KEY in Render environment variables.")
+                return []
 
             else:
                 print(f"⚠️ API error: {r.status_code} - {r.text}")

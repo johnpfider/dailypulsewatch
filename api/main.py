@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, Form, Query
+import os
+
+from fastapi import FastAPI, HTTPException, Form, Query, Header
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from api.db import close_pool, get_conn
@@ -263,11 +265,38 @@ def unsubscribe_link(email: str = Query(...)):
 
 
 # -----------------------
-# Get All Subscribers
+# Public Subscribers Endpoint Disabled
 # -----------------------
 
 @app.get("/subscribers")
-def get_all_subscribers():
+def get_all_subscribers_disabled():
+    raise HTTPException(
+        status_code=404,
+        detail="Not found"
+    )
+
+
+# -----------------------
+# Internal Subscribers Endpoint
+# -----------------------
+
+@app.get("/internal/subscribers")
+def get_internal_subscribers(x_admin_key: str = Header(None)):
+    expected_key = os.getenv("ADMIN_API_KEY")
+
+    if not expected_key:
+        print("🚨 ADMIN_API_KEY is not set on the API service.")
+        raise HTTPException(
+            status_code=500,
+            detail="Server configuration error"
+        )
+
+    if x_admin_key != expected_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized"
+        )
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
