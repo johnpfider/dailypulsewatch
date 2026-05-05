@@ -27,6 +27,7 @@ def get_cached_weather(zip_code: str):
             freezing = False
             sunrise = None
             sunset = None
+            condition = "Weather data unavailable"
 
             tomorrow_high_f = None
             tomorrow_low_f = None
@@ -34,6 +35,7 @@ def get_cached_weather(zip_code: str):
             tomorrow_freezing = False
             tomorrow_sunrise = None
             tomorrow_sunset = None
+            tomorrow_condition = "Weather data unavailable"
 
             wind_speed = 0.0
             wind_gust = 0.0

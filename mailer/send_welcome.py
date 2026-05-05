@@ -52,6 +52,9 @@ def send_welcome_email(email, zip_code, horoscope):
                 tomorrow_weather_line = f"""
                 <div style="margin-top:12px;">
                     <strong>Tomorrow</strong><br/>
+                    <span style="color:#374151;">
+                        {getattr(weather, "tomorrow_condition", "Weather conditions unavailable")}
+                    </span><br/>
                     High: {weather.tomorrow_high_f}°F<br/>
                     Low: {weather.tomorrow_low_f}°F
                 </div>
@@ -59,6 +62,9 @@ def send_welcome_email(email, zip_code, horoscope):
 
             weather_line = f"""
             <strong>Today</strong><br/>
+            <span style="color:#374151;">
+                {getattr(weather, "condition", "Weather conditions unavailable")}
+            </span><br/>
             High: {weather.high_f}°F<br/>
             Low: {weather.low_f}°F
             {tomorrow_weather_line}
