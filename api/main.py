@@ -81,7 +81,6 @@ def subscribe(
 
     print("Incoming:", email, zip, horoscope)
 
-    # Validate ZIP
     try:
         geocode_zip(zip)
     except Exception:
@@ -238,30 +237,71 @@ def unsubscribe_link(email: str = Query(...)):
         </body>
         </html>
         """
-    else:
-        return f"""
-        <html>
-        <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:30px;">
-            <div style="
-                max-width:600px;
-                margin:auto;
-                background:#FFFFFF;
-                padding:28px;
-                border-radius:18px;
-                border:1px solid #E5E7EB;
-                box-shadow:0 12px 28px rgba(0,0,0,0.12);
-            ">
-                <h2 style="margin-top:0;">Email not found</h2>
-                <p>
-                    We couldn’t find <strong>{email}</strong>.
-                </p>
-                <p style="color:#6B7280;">
-                    It may already be unsubscribed.
-                </p>
-            </div>
-        </body>
-        </html>
-        """
+
+    return f"""
+    <html>
+    <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:30px;">
+        <div style="
+            max-width:600px;
+            margin:auto;
+            background:#FFFFFF;
+            padding:28px;
+            border-radius:18px;
+            border:1px solid #E5E7EB;
+            box-shadow:0 12px 28px rgba(0,0,0,0.12);
+        ">
+            <h2 style="margin-top:0;">Email not found</h2>
+            <p>
+                We couldn’t find <strong>{email}</strong>.
+            </p>
+            <p style="color:#6B7280;">
+                It may already be unsubscribed.
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+
+# -----------------------
+# Subscriber Helpers
+# -----------------------
+
+def require_admin_key(x_admin_key: str | None):
+    expected_key = os.getenv("ADMIN_API_KEY")
+
+    if not expected_key:
+        print("🚨 ADMIN_API_KEY is not set on the API service.")
+        raise HTTPException(
+            status_code=500,
+            detail="Server configuration error"
+        )
+
+    if x_admin_key != expected_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized"
+        )
+
+
+def fetch_active_subscribers():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT email, zip, horoscope FROM subscribers WHERE is_active = TRUE"
+            )
+            rows = cur.fetchall()
+
+    subscribers = []
+
+    for row in rows:
+        subscribers.append({
+            "email": row[0],
+            "zip": row[1],
+            "horoscope": row[2]
+        })
+
+    return subscribers
 
 
 # -----------------------
@@ -282,38 +322,8 @@ def get_all_subscribers_disabled():
 
 @app.get("/internal/subscribers")
 def get_internal_subscribers(x_admin_key: str = Header(None)):
-    expected_key = os.getenv("ADMIN_API_KEY")
-
-    if not expected_key:
-        print("🚨 ADMIN_API_KEY is not set on the API service.")
-        raise HTTPException(
-            status_code=500,
-            detail="Server configuration error"
-        )
-
-    if x_admin_key != expected_key:
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized"
-        )
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT email, zip, horoscope FROM subscribers WHERE is_active = TRUE"
-            )
-            rows = cur.fetchall()
-
-    subscribers = []
-
-    for row in rows:
-        subscribers.append({
-            "email": row[0],
-            "zip": row[1],
-            "horoscope": row[2]
-        })
-
-    return subscribers
+    require_admin_key(x_admin_key)
+    return fetch_active_subscribers()
 
 
 # -----------------------
