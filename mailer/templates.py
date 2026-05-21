@@ -17,16 +17,21 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
         sun_line = "Sunrise: —<br/>Sunset: —"
     else:
         today_condition = getattr(weather, "condition", "Weather conditions unavailable")
+        today_summary = getattr(weather, "summary", today_condition)
+
         tomorrow_condition = getattr(weather, "tomorrow_condition", "Weather conditions unavailable")
+        tomorrow_summary = getattr(weather, "tomorrow_summary", tomorrow_condition)
 
         weather_line = f"""
-        <strong>Today:</strong> {today_condition}<br/>
+        <strong>Today:</strong> {today_summary}<br/>
+        <span style="color:#6B7280;">{today_condition}</span><br/>
         High: {weather.high_f}°F | Low: {weather.low_f}°F
         """
 
         if getattr(weather, "tomorrow_high_f", None) is not None:
             weather_line += f"""
-            <br/><strong>Tomorrow:</strong> {tomorrow_condition}<br/>
+            <br/><strong>Tomorrow:</strong> {tomorrow_summary}<br/>
+            <span style="color:#6B7280;">{tomorrow_condition}</span><br/>
             High: {weather.tomorrow_high_f}°F | Low: {weather.tomorrow_low_f}°F
             """
 

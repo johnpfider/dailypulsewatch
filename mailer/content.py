@@ -44,6 +44,7 @@ class WeatherSignal:
     sunrise: str
     sunset: str
     condition: str = "Unavailable"
+    summary: str = "Weather summary unavailable."
 
     tomorrow_high_f: float | None = None
     tomorrow_low_f: float | None = None
@@ -52,6 +53,7 @@ class WeatherSignal:
     tomorrow_sunrise: str | None = None
     tomorrow_sunset: str | None = None
     tomorrow_condition: str | None = None
+    tomorrow_summary: str | None = None
 
     wind_speed: float = 0.0
     wind_gust: float = 0.0
@@ -139,6 +141,81 @@ def weather_code_description(code) -> str:
         return "Weather conditions unavailable"
 
 
+def summarize_day_weather(hourly_weather_codes, hourly_precip_probs=None, start_index=0) -> str:
+    hourly_precip_probs = hourly_precip_probs or []
+
+    morning_codes = hourly_weather_codes[start_index + 6:start_index + 12]
+    afternoon_codes = hourly_weather_codes[start_index + 12:start_index + 18]
+    evening_codes = hourly_weather_codes[start_index + 18:start_index + 23]
+
+    day_codes = morning_codes + afternoon_codes + evening_codes
+
+    if not day_codes:
+        return "Weather summary unavailable."
+
+    def has_rain(codes):
+        return any(code in [51, 53, 55, 61, 63, 65, 80, 81, 82] for code in codes)
+
+    def has_snow(codes):
+        return any(code in [71, 73, 75, 77, 85, 86] for code in codes)
+
+    def mostly_clear(codes):
+        return codes and sum(1 for code in codes if code in [0, 1]) >= max(1, len(codes) // 2)
+
+    def mostly_cloudy(codes):
+        return codes and sum(1 for code in codes if code in [2, 3, 45, 48]) >= max(1, len(codes) // 2)
+
+    def block_name(codes):
+        if has_snow(codes):
+            return "snow"
+        if has_rain(codes):
+            return "rain"
+        if mostly_clear(codes):
+            return "mostly clear"
+        if mostly_cloudy(codes):
+            return "cloudy"
+        return "mixed"
+
+    morning = block_name(morning_codes)
+    afternoon = block_name(afternoon_codes)
+    evening = block_name(evening_codes)
+
+    max_precip = 0
+
+    if hourly_precip_probs:
+        day_probs = hourly_precip_probs[start_index + 6:start_index + 23]
+        clean_probs = [p for p in day_probs if p is not None]
+        max_precip = max(clean_probs) if clean_probs else 0
+
+    if morning == afternoon == evening:
+        if morning == "mostly clear":
+            return "Mostly clear through the day."
+        if morning == "cloudy":
+            return "Cloudy through much of the day."
+        if morning == "rain":
+            return "Rain is possible through much of the day."
+        if morning == "snow":
+            return "Snow is possible through much of the day."
+
+    if morning != afternoon:
+        if afternoon == "rain":
+            return "Clouds may build through the morning, with rain possible later in the day."
+        if morning == "rain" and afternoon != "rain":
+            return "Rain is possible early, with conditions improving later."
+        if morning == "mostly clear" and afternoon == "cloudy":
+            return "A clearer start may turn cloudier later in the day."
+        if morning == "cloudy" and afternoon == "mostly clear":
+            return "Clouds may linger early, with brighter conditions later."
+
+    if evening == "rain":
+        return "Rain may become more likely later in the day."
+
+    if max_precip >= 50:
+        return "Keep an eye out for showers at some point today."
+
+    return "Mixed conditions through the day."
+
+
 def fetch_weather(lat: float, lon: float) -> WeatherSignal:
     url = "https://api.open-meteo.com/v1/forecast"
 
@@ -146,7 +223,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
         "latitude": lat,
         "longitude": lon,
         "daily": "weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,sunrise,sunset",
-        "hourly": "windspeed_10m,windgusts_10m",
+        "hourly": "weathercode,precipitation_probability,windspeed_10m,windgusts_10m",
         "forecast_days": 2,
         "timezone": "auto",
     }
@@ -165,6 +242,9 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             d = payload["daily"]
             hourly = payload.get("hourly", {})
 
+            hourly_weather_codes = hourly.get("weathercode", []) or []
+            hourly_precip_probs = hourly.get("precipitation_probability", []) or []
+
             # TODAY
             sunrise_dt = datetime.fromisoformat(d["sunrise"][0])
             sunset_dt = datetime.fromisoformat(d["sunset"][0])
@@ -182,6 +262,12 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             precip_mm = round(precip, 1)
             condition = weather_code_description(weather_code)
 
+            summary = summarize_day_weather(
+                hourly_weather_codes=hourly_weather_codes,
+                hourly_precip_probs=hourly_precip_probs,
+                start_index=0,
+            )
+
             # TOMORROW
             tomorrow_high_f = None
             tomorrow_low_f = None
@@ -190,6 +276,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             tomorrow_sunrise = None
             tomorrow_sunset = None
             tomorrow_condition = None
+            tomorrow_summary = None
 
             if len(d.get("temperature_2m_max", [])) > 1:
                 tomorrow_high_c = d["temperature_2m_max"][1]
@@ -202,6 +289,12 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 tomorrow_precip_mm = round(tomorrow_precip, 1)
                 tomorrow_freezing = tomorrow_low_f <= 32
                 tomorrow_condition = weather_code_description(tomorrow_weather_code)
+
+                tomorrow_summary = summarize_day_weather(
+                    hourly_weather_codes=hourly_weather_codes,
+                    hourly_precip_probs=hourly_precip_probs,
+                    start_index=24,
+                )
 
                 tomorrow_sunrise_dt = datetime.fromisoformat(d["sunrise"][1])
                 tomorrow_sunset_dt = datetime.fromisoformat(d["sunset"][1])
@@ -218,8 +311,8 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
 
             print("✅ Weather fetched successfully")
             print(f"🌬️ WIND: speed={wind_speed}, gust={wind_gust}")
-            print(f"🌤️ TODAY: {condition}, high={high_f}, low={low_f}")
-            print(f"🌤️ TOMORROW: {tomorrow_condition}, high={tomorrow_high_f}, low={tomorrow_low_f}")
+            print(f"🌤️ TODAY: {condition}, {summary}, high={high_f}, low={low_f}")
+            print(f"🌤️ TOMORROW: {tomorrow_condition}, {tomorrow_summary}, high={tomorrow_high_f}, low={tomorrow_low_f}")
 
             return WeatherSignal(
                 high_f=high_f,
@@ -229,6 +322,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 sunrise=sunrise,
                 sunset=sunset,
                 condition=condition,
+                summary=summary,
                 tomorrow_high_f=tomorrow_high_f,
                 tomorrow_low_f=tomorrow_low_f,
                 tomorrow_precip_mm=tomorrow_precip_mm,
@@ -236,6 +330,7 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 tomorrow_sunrise=tomorrow_sunrise,
                 tomorrow_sunset=tomorrow_sunset,
                 tomorrow_condition=tomorrow_condition,
+                tomorrow_summary=tomorrow_summary,
                 wind_speed=wind_speed,
                 wind_gust=wind_gust,
             )
@@ -606,6 +701,7 @@ Allergy Risk: {allergy_risk(pollen)}
         tomorrow_weather = f"""
 Tomorrow Weather
 ----------------
+Summary: {getattr(weather, "tomorrow_summary", "—")}
 Condition: {getattr(weather, "tomorrow_condition", "—")}
 High: {weather.tomorrow_high_f}°F
 Low: {weather.tomorrow_low_f}°F
@@ -635,6 +731,7 @@ ZIP: {zip_code}
 Weather
 -------
 Today
+Summary: {getattr(weather, "summary", "—")}
 Condition: {getattr(weather, "condition", "—")}
 High: {weather.high_f}°F
 Low: {weather.low_f}°F
