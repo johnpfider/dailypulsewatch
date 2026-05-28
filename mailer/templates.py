@@ -16,22 +16,26 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
         weather_line = "Weather data is temporarily unavailable."
         sun_line = "Sunrise: —<br/>Sunset: —"
     else:
-        today_condition = getattr(weather, "condition", "Weather conditions unavailable")
-        today_summary = getattr(weather, "summary", today_condition)
+        today_summary = getattr(
+            weather,
+            "summary",
+            getattr(weather, "condition", "Weather conditions unavailable")
+        )
 
-        tomorrow_condition = getattr(weather, "tomorrow_condition", "Weather conditions unavailable")
-        tomorrow_summary = getattr(weather, "tomorrow_summary", tomorrow_condition)
+        tomorrow_summary = getattr(
+            weather,
+            "tomorrow_summary",
+            getattr(weather, "tomorrow_condition", "Weather conditions unavailable")
+        )
 
         weather_line = f"""
         <strong>Today:</strong> {today_summary}<br/>
-        <span style="color:#6B7280;">{today_condition}</span><br/>
         High: {weather.high_f}°F | Low: {weather.low_f}°F
         """
 
         if getattr(weather, "tomorrow_high_f", None) is not None:
             weather_line += f"""
             <br/><strong>Tomorrow:</strong> {tomorrow_summary}<br/>
-            <span style="color:#6B7280;">{tomorrow_condition}</span><br/>
             High: {weather.tomorrow_high_f}°F | Low: {weather.tomorrow_low_f}°F
             """
 
@@ -130,11 +134,11 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
     # -----------------------
     horoscope_html = ""
 
-    if horoscopes:
+    if horoscopes and any((text or "").strip() for text in horoscopes.values()):
         items = "".join(
             f"<p style='margin:0 0 12px 0;'><strong>{sign.title()}</strong><br/>{text}</p>"
             for sign, text in horoscopes.items()
-            if text
+            if text and text.strip()
         )
 
         horoscope_html = f"""
