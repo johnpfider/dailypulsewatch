@@ -46,6 +46,9 @@ class WeatherSignal:
     condition: str = "Unavailable"
     summary: str = "Weather summary unavailable."
 
+    foggy: bool = False
+    heavy_rain: bool = False
+
     tomorrow_high_f: float | None = None
     tomorrow_low_f: float | None = None
     tomorrow_precip_mm: float | None = None
@@ -54,6 +57,8 @@ class WeatherSignal:
     tomorrow_sunset: str | None = None
     tomorrow_condition: str | None = None
     tomorrow_summary: str | None = None
+    tomorrow_foggy: bool = False
+    tomorrow_heavy_rain: bool = False
 
     wind_speed: float = 0.0
     wind_gust: float = 0.0
@@ -153,6 +158,12 @@ def summarize_day_weather(hourly_weather_codes, hourly_precip_probs=None, start_
     if not day_codes:
         return "Weather summary unavailable."
 
+    def has_fog(codes):
+        return any(code in [45, 48] for code in codes)
+
+    def has_heavy_rain(codes):
+        return any(code in [65, 82] for code in codes)
+
     def has_rain(codes):
         return any(code in [51, 53, 55, 61, 63, 65, 80, 81, 82] for code in codes)
 
@@ -163,11 +174,15 @@ def summarize_day_weather(hourly_weather_codes, hourly_precip_probs=None, start_
         return codes and sum(1 for code in codes if code in [0, 1]) >= max(1, len(codes) // 2)
 
     def mostly_cloudy(codes):
-        return codes and sum(1 for code in codes if code in [2, 3, 45, 48]) >= max(1, len(codes) // 2)
+        return codes and sum(1 for code in codes if code in [2, 3]) >= max(1, len(codes) // 2)
 
     def block_name(codes):
+        if has_fog(codes):
+            return "fog"
         if has_snow(codes):
             return "snow"
+        if has_heavy_rain(codes):
+            return "heavy rain"
         if has_rain(codes):
             return "rain"
         if mostly_clear(codes):
@@ -187,6 +202,13 @@ def summarize_day_weather(hourly_weather_codes, hourly_precip_probs=None, start_
         clean_probs = [p for p in day_probs if p is not None]
         max_precip = max(clean_probs) if clean_probs else 0
 
+    # Fog gets priority because it matters for driving visibility
+    if morning == "fog":
+        return "Fog may reduce visibility during the morning commute."
+
+    if afternoon == "fog" or evening == "fog":
+        return "Fog may reduce visibility later in the day."
+
     if morning == afternoon == evening:
         if morning == "mostly clear":
             return "Mostly clear through the day."
@@ -194,10 +216,14 @@ def summarize_day_weather(hourly_weather_codes, hourly_precip_probs=None, start_
             return "Cloudy through much of the day."
         if morning == "rain":
             return "Rain is possible through much of the day."
+        if morning == "heavy rain":
+            return "Heavy rain may affect travel at times today."
         if morning == "snow":
             return "Snow is possible through much of the day."
 
     if morning != afternoon:
+        if afternoon == "heavy rain":
+            return "Clouds may build through the morning, with heavier rain possible later."
         if afternoon == "rain":
             return "Clouds may build through the morning, with rain possible later in the day."
         if morning == "rain" and afternoon != "rain":
@@ -207,6 +233,9 @@ def summarize_day_weather(hourly_weather_codes, hourly_precip_probs=None, start_
         if morning == "cloudy" and afternoon == "mostly clear":
             return "Clouds may linger early, with brighter conditions later."
 
+    if evening == "heavy rain":
+        return "Heavier rain may become more likely later in the day."
+
     if evening == "rain":
         return "Rain may become more likely later in the day."
 
@@ -214,6 +243,16 @@ def summarize_day_weather(hourly_weather_codes, hourly_precip_probs=None, start_
         return "Keep an eye out for showers at some point today."
 
     return "Mixed conditions through the day."
+
+
+def has_fog_in_day(hourly_weather_codes, start_index=0) -> bool:
+    day_codes = hourly_weather_codes[start_index + 5:start_index + 23]
+    return any(code in [45, 48] for code in day_codes)
+
+
+def has_heavy_rain_in_day(hourly_weather_codes, start_index=0) -> bool:
+    day_codes = hourly_weather_codes[start_index + 5:start_index + 23]
+    return any(code in [65, 82] for code in day_codes)
 
 
 def fetch_weather(lat: float, lon: float) -> WeatherSignal:
@@ -268,6 +307,9 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 start_index=0,
             )
 
+            foggy = has_fog_in_day(hourly_weather_codes, start_index=0)
+            heavy_rain = has_heavy_rain_in_day(hourly_weather_codes, start_index=0)
+
             # TOMORROW
             tomorrow_high_f = None
             tomorrow_low_f = None
@@ -277,6 +319,8 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
             tomorrow_sunset = None
             tomorrow_condition = None
             tomorrow_summary = None
+            tomorrow_foggy = False
+            tomorrow_heavy_rain = False
 
             if len(d.get("temperature_2m_max", [])) > 1:
                 tomorrow_high_c = d["temperature_2m_max"][1]
@@ -296,6 +340,9 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                     start_index=24,
                 )
 
+                tomorrow_foggy = has_fog_in_day(hourly_weather_codes, start_index=24)
+                tomorrow_heavy_rain = has_heavy_rain_in_day(hourly_weather_codes, start_index=24)
+
                 tomorrow_sunrise_dt = datetime.fromisoformat(d["sunrise"][1])
                 tomorrow_sunset_dt = datetime.fromisoformat(d["sunset"][1])
 
@@ -311,6 +358,8 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
 
             print("✅ Weather fetched successfully")
             print(f"🌬️ WIND: speed={wind_speed}, gust={wind_gust}")
+            print(f"🌫️ FOG TODAY: {foggy}")
+            print(f"🌧️ HEAVY RAIN TODAY: {heavy_rain}")
             print(f"🌤️ TODAY: {condition}, {summary}, high={high_f}, low={low_f}")
             print(f"🌤️ TOMORROW: {tomorrow_condition}, {tomorrow_summary}, high={tomorrow_high_f}, low={tomorrow_low_f}")
 
@@ -323,6 +372,8 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 sunset=sunset,
                 condition=condition,
                 summary=summary,
+                foggy=foggy,
+                heavy_rain=heavy_rain,
                 tomorrow_high_f=tomorrow_high_f,
                 tomorrow_low_f=tomorrow_low_f,
                 tomorrow_precip_mm=tomorrow_precip_mm,
@@ -331,6 +382,8 @@ def fetch_weather(lat: float, lon: float) -> WeatherSignal:
                 tomorrow_sunset=tomorrow_sunset,
                 tomorrow_condition=tomorrow_condition,
                 tomorrow_summary=tomorrow_summary,
+                tomorrow_foggy=tomorrow_foggy,
+                tomorrow_heavy_rain=tomorrow_heavy_rain,
                 wind_speed=wind_speed,
                 wind_gust=wind_gust,
             )
@@ -611,6 +664,30 @@ def fetch_todays_headlines() -> list[HeadlineSignal]:
 # ============================================================
 
 def compute_commute(weather: WeatherSignal):
+    if getattr(weather, "foggy", False):
+        return {
+            "commute_line": "Fog may reduce visibility during your commute. Allow extra space and use low beams.",
+            "ice_risk": "Visibility concern",
+            "ice_text": "Fog can make it harder to see stopped traffic, pedestrians, and road changes.",
+            "show_details": True
+        }
+
+    if getattr(weather, "heavy_rain", False):
+        return {
+            "commute_line": "Heavy rain may affect travel today. Watch for ponding on roads and reduced visibility.",
+            "ice_risk": "Rain concern",
+            "ice_text": "Heavy rain can increase stopping distance and reduce visibility.",
+            "show_details": True
+        }
+
+    if weather.wind_gust >= 35:
+        return {
+            "commute_line": "Gusty winds may affect the commute, especially on open roads and bridges.",
+            "ice_risk": "Wind concern",
+            "ice_text": "Strong gusts can make driving feel unstable, especially for high-profile vehicles.",
+            "show_details": True
+        }
+
     if weather.freezing and weather.precip_mm == 0:
         return {
             "commute_line": "Cold temperatures are present, but dry conditions reduce the risk of slick roads.",
@@ -677,7 +754,7 @@ def build_email_content(
 
         commute_details = f"""
 Precipitation: {precip_in} in
-Black Ice Risk: {commute["ice_risk"]}
+Commute Concern: {commute["ice_risk"]}
 {commute["ice_text"]}
 """
 
