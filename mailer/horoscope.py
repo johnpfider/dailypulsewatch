@@ -47,7 +47,8 @@ def fetch_horoscope(sign: str) -> str:
     print(f"🔮 Horoscope API response keys for {sign}: {list(data.keys())}")
 
     horoscope_text = (
-        data.get("data", {}).get("horoscope_data")
+        data.get("data", {}).get("horoscope")
+        or data.get("data", {}).get("horoscope_data")
         or data.get("horoscope")
         or data.get("horoscope_data")
         or ""
