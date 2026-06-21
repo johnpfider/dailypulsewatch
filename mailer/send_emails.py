@@ -67,6 +67,7 @@ def send_email(to_email, subject, html_body):
                 "to": [to_email],
                 "subject": subject,
                 "html": html_body,
+                "reply_to": os.getenv("REPLY_TO_EMAIL"),
             },
             timeout=10,
         )
