@@ -128,7 +128,7 @@ def subscribe(
         heading = "✅ Welcome back!"
         body_text = "Your DailyPulseWatch subscription has been reactivated."
     else:
-        heading = "✅ Success!"
+        heading = "✅ You're in!"
         body_text = "Thank you for signing up for DailyPulseWatch."
 
     return f"""
@@ -136,7 +136,7 @@ def subscribe(
     <body style="font-family:Arial,Helvetica,sans-serif; background:#F3F4F6; padding:40px 20px;">
 
         <div style="
-            max-width:520px;
+            max-width:560px;
             margin:60px auto;
             background:#FFFFFF;
             padding:32px;
@@ -153,15 +153,26 @@ def subscribe(
             </p>
 
             <p style="color:#4B5563; line-height:1.5;">
-                Your nurse-focused daily briefing is on its way.
+                Check your inbox for two emails:
             </p>
 
-            <p style="margin-top:20px; font-size:14px; color:#6B7280;">
-                Check your inbox for your welcome email.
+            <div style="
+                text-align:left;
+                display:inline-block;
+                margin:8px auto 12px auto;
+                color:#374151;
+                line-height:1.7;
+            ">
+                <div>1. Your DailyPulseWatch welcome email</div>
+                <div>2. Your Healthcare Worker’s Mental Unload</div>
+            </div>
+
+            <p style="margin-top:16px; font-size:14px; color:#6B7280; line-height:1.5;">
+                If you don’t see them, check your spam, junk, or promotions folder.
             </p>
 
             <p style="margin-top:28px; font-size:12px; color:#9CA3AF;">
-                Built by a nurse, for nurses.
+                Built by a nurse, for healthcare professionals.
             </p>
 
         </div>
