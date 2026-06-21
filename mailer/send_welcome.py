@@ -12,10 +12,12 @@ from mailer.content import (
 )
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
+from mailer.mental_unload import send_mental_unload_email
 
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 FROM_EMAIL = os.getenv("FROM_EMAIL")
+REPLY_TO_EMAIL = os.getenv("REPLY_TO_EMAIL")
 
 
 def send_welcome_email(email, zip_code, horoscope):
@@ -253,7 +255,7 @@ def send_welcome_email(email, zip_code, horoscope):
                 </p>
 
                 <div style="margin-top:28px;">
-                    <p><strong>Built by a nurse, for nurses.</strong></p>
+                    <p><strong>Built by a nurse, for healthcare professionals.</strong></p>
 
                     <p style="color:#6B7280; font-size:12px;">
                         You’re receiving this because you signed up for DailyPulseWatch.
@@ -275,22 +277,36 @@ def send_welcome_email(email, zip_code, horoscope):
         # -----------------------
         # SEND VIA RESEND
         # -----------------------
+        email_payload = {
+            "from": FROM_EMAIL,
+            "to": [email],
+            "subject": "Welcome to DailyPulseWatch",
+            "html": html,
+        }
+
+        if REPLY_TO_EMAIL:
+            email_payload["reply_to"] = REPLY_TO_EMAIL
+
         response = requests.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {RESEND_API_KEY}",
                 "Content-Type": "application/json",
             },
-            json={
-                "from": FROM_EMAIL,
-                "to": [email],
-                "subject": "Welcome to DailyPulseWatch",
-                "html": html,
-            },
+            json=email_payload,
         )
 
         if response.status_code == 200:
             print(f"✅ Welcome email sent to {email}")
+
+            try:
+                send_mental_unload_email(email)
+            except Exception as mental_unload_error:
+                print(
+                    f"⚠️ Welcome email sent, but Mental Unload email failed for {email}: "
+                    f"{mental_unload_error}"
+                )
+
         else:
             print(f"❌ Failed: {response.text}")
 
