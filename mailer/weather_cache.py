@@ -7,10 +7,12 @@ weather_cache = {}
 def get_cached_weather(zip_code: str):
 
     if zip_code in weather_cache:
+        print(f"🌦️ CACHE HIT for ZIP {zip_code}")
         return weather_cache[zip_code]
 
     try:
         lat, lon = geocode_zip(zip_code)
+        print(f"🌦️ CACHE MISS for ZIP {zip_code}")
         weather = fetch_weather(lat, lon)
 
         weather_cache[zip_code] = weather
