@@ -1,3 +1,6 @@
+Here’s the fully updated `content.py` with only `fetch_weather()` changed to call `mailer.weather_openweather.fetch_weather_openweather`.
+
+```python
 # ============================================================
 # DailyPulseWatch — Core Content Logic
 # ============================================================
@@ -256,147 +259,9 @@ def has_heavy_rain_in_day(hourly_weather_codes, start_index=0) -> bool:
 
 
 def fetch_weather(lat: float, lon: float) -> WeatherSignal:
-    url = "https://api.open-meteo.com/v1/forecast"
+    from mailer.weather_openweather import fetch_weather_openweather
 
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "daily": "weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,sunrise,sunset",
-        "hourly": "weathercode,precipitation_probability,windspeed_10m,windgusts_10m",
-        "forecast_days": 2,
-        "timezone": "auto",
-    }
-
-    retries = 3
-    delay = 10
-
-    for attempt in range(1, retries + 1):
-        try:
-            print(f"🌦️ Fetching weather (attempt {attempt})...")
-
-            r = requests.get(url, params=params, timeout=5)
-            r.raise_for_status()
-
-            payload = r.json()
-            d = payload["daily"]
-            hourly = payload.get("hourly", {})
-
-            hourly_weather_codes = hourly.get("weathercode", []) or []
-            hourly_precip_probs = hourly.get("precipitation_probability", []) or []
-
-            # TODAY
-            sunrise_dt = datetime.fromisoformat(d["sunrise"][0])
-            sunset_dt = datetime.fromisoformat(d["sunset"][0])
-
-            sunrise = sunrise_dt.strftime("%I:%M %p").lstrip("0")
-            sunset = sunset_dt.strftime("%I:%M %p").lstrip("0")
-
-            high_c = d["temperature_2m_max"][0]
-            low_c = d["temperature_2m_min"][0]
-            precip = d["precipitation_sum"][0]
-            weather_code = d.get("weathercode", [None])[0]
-
-            high_f = round(high_c * 9 / 5 + 32, 1)
-            low_f = round(low_c * 9 / 5 + 32, 1)
-            precip_mm = round(precip, 1)
-            condition = weather_code_description(weather_code)
-
-            summary = summarize_day_weather(
-                hourly_weather_codes=hourly_weather_codes,
-                hourly_precip_probs=hourly_precip_probs,
-                start_index=0,
-            )
-
-            foggy = has_fog_in_day(hourly_weather_codes, start_index=0)
-            heavy_rain = has_heavy_rain_in_day(hourly_weather_codes, start_index=0)
-
-            # TOMORROW
-            tomorrow_high_f = None
-            tomorrow_low_f = None
-            tomorrow_precip_mm = None
-            tomorrow_freezing = False
-            tomorrow_sunrise = None
-            tomorrow_sunset = None
-            tomorrow_condition = None
-            tomorrow_summary = None
-            tomorrow_foggy = False
-            tomorrow_heavy_rain = False
-
-            if len(d.get("temperature_2m_max", [])) > 1:
-                tomorrow_high_c = d["temperature_2m_max"][1]
-                tomorrow_low_c = d["temperature_2m_min"][1]
-                tomorrow_precip = d["precipitation_sum"][1]
-                tomorrow_weather_code = d.get("weathercode", [None, None])[1]
-
-                tomorrow_high_f = round(tomorrow_high_c * 9 / 5 + 32, 1)
-                tomorrow_low_f = round(tomorrow_low_c * 9 / 5 + 32, 1)
-                tomorrow_precip_mm = round(tomorrow_precip, 1)
-                tomorrow_freezing = tomorrow_low_f <= 32
-                tomorrow_condition = weather_code_description(tomorrow_weather_code)
-
-                tomorrow_summary = summarize_day_weather(
-                    hourly_weather_codes=hourly_weather_codes,
-                    hourly_precip_probs=hourly_precip_probs,
-                    start_index=24,
-                )
-
-                tomorrow_foggy = has_fog_in_day(hourly_weather_codes, start_index=24)
-                tomorrow_heavy_rain = has_heavy_rain_in_day(hourly_weather_codes, start_index=24)
-
-                tomorrow_sunrise_dt = datetime.fromisoformat(d["sunrise"][1])
-                tomorrow_sunset_dt = datetime.fromisoformat(d["sunset"][1])
-
-                tomorrow_sunrise = tomorrow_sunrise_dt.strftime("%I:%M %p").lstrip("0")
-                tomorrow_sunset = tomorrow_sunset_dt.strftime("%I:%M %p").lstrip("0")
-
-            # WIND — today only
-            wind_speed_values = hourly.get("windspeed_10m", [0]) or [0]
-            wind_gust_values = hourly.get("windgusts_10m", [0]) or [0]
-
-            wind_speed = float(max(wind_speed_values[:24] or [0]))
-            wind_gust = float(max(wind_gust_values[:24] or [0]))
-
-            print("✅ Weather fetched successfully")
-            print(f"🌬️ WIND: speed={wind_speed}, gust={wind_gust}")
-            print(f"🌫️ FOG TODAY: {foggy}")
-            print(f"🌧️ HEAVY RAIN TODAY: {heavy_rain}")
-            print(f"🌤️ TODAY: {condition}, {summary}, high={high_f}, low={low_f}")
-            print(f"🌤️ TOMORROW: {tomorrow_condition}, {tomorrow_summary}, high={tomorrow_high_f}, low={tomorrow_low_f}")
-
-            return WeatherSignal(
-                high_f=high_f,
-                low_f=low_f,
-                precip_mm=precip_mm,
-                freezing=low_f <= 32,
-                sunrise=sunrise,
-                sunset=sunset,
-                condition=condition,
-                summary=summary,
-                foggy=foggy,
-                heavy_rain=heavy_rain,
-                tomorrow_high_f=tomorrow_high_f,
-                tomorrow_low_f=tomorrow_low_f,
-                tomorrow_precip_mm=tomorrow_precip_mm,
-                tomorrow_freezing=tomorrow_freezing,
-                tomorrow_sunrise=tomorrow_sunrise,
-                tomorrow_sunset=tomorrow_sunset,
-                tomorrow_condition=tomorrow_condition,
-                tomorrow_summary=tomorrow_summary,
-                tomorrow_foggy=tomorrow_foggy,
-                tomorrow_heavy_rain=tomorrow_heavy_rain,
-                wind_speed=wind_speed,
-                wind_gust=wind_gust,
-            )
-
-        except Exception as e:
-            print(f"❌ Weather attempt {attempt} failed: {e}")
-
-            if attempt < retries:
-                print(f"⏳ Retrying weather in {delay} seconds...")
-                time.sleep(delay)
-
-    print("🚨 All weather retries failed — using fallback")
-    raise Exception("Weather API failed after retries")
+    return fetch_weather_openweather(lat, lon)
 
 
 # ============================================================
@@ -841,3 +706,4 @@ Quote
 "{quote.get('text','')}"
 — {quote.get('author','')}
 """
+```
