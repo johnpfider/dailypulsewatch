@@ -7,6 +7,7 @@ from mailer.content import (
     summarize_day_weather,
     has_fog_in_day,
     has_heavy_rain_in_day,
+    weather_code_description,
 )
 
 
@@ -60,18 +61,92 @@ def _openweather_to_internal_code(weather_id: int) -> int:
     return 3
 
 
-def _condition_text(day_data: dict) -> str:
-    weather_items = day_data.get("weather") or []
+def _weather_id_from_record(record: dict) -> int:
+    weather_items = record.get("weather") or []
+    weather_id = weather_items[0].get("id") if weather_items else 804
+    return int(weather_id)
 
-    if not weather_items:
-        return "Weather conditions unavailable"
 
-    description = weather_items[0].get("description", "")
+def _condition_text(record: dict | None) -> str:
+    record = record or {}
+    weather_items = record.get("weather") or []
 
-    if not description:
-        return "Weather conditions unavailable"
+    if weather_items:
+        description = weather_items[0].get("description", "")
 
-    return description.title()
+        if description:
+            return description.title()
+
+        main = weather_items[0].get("main", "")
+
+        if main:
+            return main.title()
+
+        weather_id = weather_items[0].get("id")
+
+        if weather_id is not None:
+            return weather_code_description(
+                _openweather_to_internal_code(int(weather_id))
+            )
+
+    return "Weather conditions unavailable"
+
+
+def _condition_from_day(day_data: dict | None, hourly_records: list[dict]) -> str:
+    condition = _condition_text(day_data)
+
+    if condition != "Weather conditions unavailable":
+        return condition
+
+    representative = _representative_weather_record(hourly_records)
+    condition = _condition_text(representative)
+
+    if condition != "Weather conditions unavailable":
+        return condition
+
+    if representative:
+        return weather_code_description(
+            _openweather_to_internal_code(_weather_id_from_record(representative))
+        )
+
+    return "Weather conditions unavailable"
+
+
+def _representative_weather_record(records: list[dict]) -> dict | None:
+    if not records:
+        return None
+
+    priority = {
+        95: 90,
+        96: 90,
+        99: 90,
+        65: 80,
+        82: 80,
+        75: 75,
+        45: 70,
+        48: 70,
+        61: 60,
+        63: 60,
+        80: 60,
+        81: 60,
+        71: 55,
+        73: 55,
+        51: 45,
+        53: 45,
+        55: 45,
+        3: 35,
+        2: 25,
+        1: 15,
+        0: 10,
+    }
+
+    return max(
+        records,
+        key=lambda record: priority.get(
+            _openweather_to_internal_code(_weather_id_from_record(record)),
+            0,
+        ),
+    )
 
 
 def _precip_amount_mm(value) -> float:
@@ -160,12 +235,6 @@ def _fetch_hourly_records(api_key: str, lat: float, lon: float, minimum_records:
     return payload, records[:minimum_records]
 
 
-def _weather_id_from_record(record: dict) -> int:
-    weather_items = record.get("weather") or []
-    weather_id = weather_items[0].get("id") if weather_items else 804
-    return int(weather_id)
-
-
 def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
     api_key = (os.getenv("OPENWEATHER_API_KEY") or "").strip().strip('"').strip("'")
 
@@ -193,6 +262,9 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
     today = daily[0]
     tomorrow = daily[1] if len(daily) > 1 else None
 
+    today_hourly = hourly[:24]
+    tomorrow_hourly = hourly[24:48]
+
     hourly_weather_codes = []
     hourly_precip_probs = []
 
@@ -211,7 +283,7 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
     sunrise = _format_openweather_time(today.get("sunrise"), timezone_offset)
     sunset = _format_openweather_time(today.get("sunset"), timezone_offset)
 
-    condition = _condition_text(today)
+    condition = _condition_from_day(today, today_hourly)
 
     summary = summarize_day_weather(
         hourly_weather_codes=hourly_weather_codes,
@@ -249,7 +321,7 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
             timezone_offset,
         )
 
-        tomorrow_condition = _condition_text(tomorrow)
+        tomorrow_condition = _condition_from_day(tomorrow, tomorrow_hourly)
 
         tomorrow_summary = summarize_day_weather(
             hourly_weather_codes=hourly_weather_codes,
