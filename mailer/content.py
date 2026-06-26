@@ -703,4 +703,3 @@ Quote
 "{quote.get('text','')}"
 — {quote.get('author','')}
 """
-```
