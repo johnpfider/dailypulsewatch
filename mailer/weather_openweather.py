@@ -101,10 +101,12 @@ def _request_openweather(url: str, params: dict | None = None) -> dict:
 
     if response.status_code == 401:
         print("🚨 OpenWeather unauthorized — check OPENWEATHER_API_KEY and One Call API 4.0 subscription")
+        print(f"🚨 OpenWeather 401 response: {response.text[:300]}")
         raise Exception("OpenWeather unauthorized")
 
     if response.status_code == 429:
         print("🚨 OpenWeather rate limit hit")
+        print(f"🚨 OpenWeather 429 response: {response.text[:300]}")
         raise Exception("OpenWeather rate limited")
 
     if not response.ok:
@@ -165,7 +167,7 @@ def _weather_id_from_record(record: dict) -> int:
 
 
 def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
-    api_key = os.getenv("OPENWEATHER_API_KEY")
+    api_key = (os.getenv("OPENWEATHER_API_KEY") or "").strip().strip('"').strip("'")
 
     if not api_key:
         print("🚨 OPENWEATHER_API_KEY is missing")
