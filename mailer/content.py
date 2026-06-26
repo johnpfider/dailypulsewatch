@@ -1,6 +1,3 @@
-Here’s the fully updated `content.py` with only `fetch_weather()` changed to call `mailer.weather_openweather.fetch_weather_openweather`.
-
-```python
 # ============================================================
 # DailyPulseWatch — Core Content Logic
 # ============================================================
