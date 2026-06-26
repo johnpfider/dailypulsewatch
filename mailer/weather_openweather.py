@@ -10,8 +10,14 @@ from mailer.content import (
 )
 
 
-def _format_openweather_time(timestamp: int, timezone_offset: int) -> str:
-    local_dt = datetime.fromtimestamp(timestamp + timezone_offset, tz=timezone.utc)
+OPENWEATHER_BASE_URL = "https://api.openweathermap.org/data/4.0/onecall"
+
+
+def _format_openweather_time(timestamp: int | None, timezone_offset: int) -> str | None:
+    if timestamp is None:
+        return None
+
+    local_dt = datetime.fromtimestamp(int(timestamp) + timezone_offset, tz=timezone.utc)
     return local_dt.strftime("%I:%M %p").lstrip("0")
 
 
@@ -68,50 +74,119 @@ def _condition_text(day_data: dict) -> str:
     return description.title()
 
 
+def _precip_amount_mm(value) -> float:
+    if value is None:
+        return 0.0
+
+    if isinstance(value, dict):
+        total = 0.0
+
+        for amount in value.values():
+            if amount is not None:
+                total += float(amount)
+
+        return total
+
+    return float(value)
+
+
 def _daily_precip_mm(day_data: dict) -> float:
-    rain = day_data.get("rain", 0) or 0
-    snow = day_data.get("snow", 0) or 0
-    return round(float(rain) + float(snow), 1)
+    rain = _precip_amount_mm(day_data.get("rain"))
+    snow = _precip_amount_mm(day_data.get("snow"))
+    return round(rain + snow, 1)
 
 
-def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
-    api_key = os.getenv("OPENWEATHER_API_KEY")
-
-    if not api_key:
-        raise Exception("OPENWEATHER_API_KEY is missing from environment variables")
-
-    url = "https://api.openweathermap.org/data/3.0/onecall"
-
-    params = {
-        "lat": lat,
-        "lon": lon,
-        "appid": api_key,
-        "units": "imperial",
-        "exclude": "minutely,alerts",
-    }
-
-    print("🌦️ Fetching weather from OpenWeather...")
-
+def _request_openweather(url: str, params: dict | None = None) -> dict:
     response = requests.get(url, params=params, timeout=10)
 
     if response.status_code == 401:
-        print("🚨 OpenWeather unauthorized — check OPENWEATHER_API_KEY")
+        print("🚨 OpenWeather unauthorized — check OPENWEATHER_API_KEY and One Call API 4.0 subscription")
         raise Exception("OpenWeather unauthorized")
 
     if response.status_code == 429:
         print("🚨 OpenWeather rate limit hit")
         raise Exception("OpenWeather rate limited")
 
+    if not response.ok:
+        print(f"🚨 OpenWeather request failed: {response.status_code} {response.text[:300]}")
+
     response.raise_for_status()
+    return response.json()
 
-    payload = response.json()
 
-    timezone_offset = int(payload.get("timezone_offset", 0))
-    daily = payload.get("daily", [])
-    hourly = payload.get("hourly", [])
+def _fetch_daily(api_key: str, lat: float, lon: float) -> dict:
+    url = f"{OPENWEATHER_BASE_URL}/timeline/1day"
+
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": api_key,
+        "units": "imperial",
+    }
+
+    return _request_openweather(url, params=params)
+
+
+def _fetch_hourly_records(api_key: str, lat: float, lon: float, minimum_records: int = 48) -> tuple[dict, list[dict]]:
+    url = f"{OPENWEATHER_BASE_URL}/timeline/1h"
+
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": api_key,
+        "units": "imperial",
+    }
+
+    records = []
+    payload = {}
+    next_url = url
+    next_params = params
+
+    for _ in range(4):
+        payload = _request_openweather(next_url, params=next_params)
+        records.extend(payload.get("data", []) or [])
+
+        if len(records) >= minimum_records:
+            break
+
+        next_url = payload.get("next")
+        next_params = None
+
+        if not next_url:
+            break
+
+    return payload, records[:minimum_records]
+
+
+def _weather_id_from_record(record: dict) -> int:
+    weather_items = record.get("weather") or []
+    weather_id = weather_items[0].get("id") if weather_items else 804
+    return int(weather_id)
+
+
+def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
+    api_key = os.getenv("OPENWEATHER_API_KEY")
+
+    if not api_key:
+        print("🚨 OPENWEATHER_API_KEY is missing")
+        raise Exception("OPENWEATHER_API_KEY is missing from environment variables")
+
+    print("🌦️ Fetching weather from OpenWeather One Call API 4.0...")
+
+    daily_payload = _fetch_daily(api_key, lat, lon)
+    hourly_payload, hourly = _fetch_hourly_records(api_key, lat, lon)
+
+    timezone_offset = int(
+        daily_payload.get(
+            "timezone_offset",
+            hourly_payload.get("timezone_offset", 0),
+        )
+    )
+
+    daily = daily_payload.get("data", []) or []
 
     if not daily:
-        raise Exception("OpenWeather response missing daily forecast")
+        raise Exception("OpenWeather 4.0 response missing daily forecast")
 
     today = daily[0]
     tomorrow = daily[1] if len(daily) > 1 else None
@@ -119,12 +194,9 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
     hourly_weather_codes = []
     hourly_precip_probs = []
 
-    for hour in hourly[:48]:
-        weather_items = hour.get("weather") or []
-        weather_id = weather_items[0].get("id") if weather_items else 804
-
+    for hour in hourly:
         hourly_weather_codes.append(
-            _openweather_to_internal_code(int(weather_id))
+            _openweather_to_internal_code(_weather_id_from_record(hour))
         )
 
         pop = hour.get("pop", 0) or 0
@@ -134,8 +206,8 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
     low_f = round(float(today["temp"]["min"]), 1)
     precip_mm = _daily_precip_mm(today)
 
-    sunrise = _format_openweather_time(today["sunrise"], timezone_offset)
-    sunset = _format_openweather_time(today["sunset"], timezone_offset)
+    sunrise = _format_openweather_time(today.get("sunrise"), timezone_offset)
+    sunset = _format_openweather_time(today.get("sunset"), timezone_offset)
 
     condition = _condition_text(today)
 
@@ -166,13 +238,13 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
         tomorrow_freezing = tomorrow_low_f <= 32
 
         tomorrow_sunrise = _format_openweather_time(
-            tomorrow["sunrise"],
-            timezone_offset
+            tomorrow.get("sunrise"),
+            timezone_offset,
         )
 
         tomorrow_sunset = _format_openweather_time(
-            tomorrow["sunset"],
-            timezone_offset
+            tomorrow.get("sunset"),
+            timezone_offset,
         )
 
         tomorrow_condition = _condition_text(tomorrow)
@@ -185,12 +257,12 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
 
         tomorrow_foggy = has_fog_in_day(
             hourly_weather_codes,
-            start_index=24
+            start_index=24,
         )
 
         tomorrow_heavy_rain = has_heavy_rain_in_day(
             hourly_weather_codes,
-            start_index=24
+            start_index=24,
         )
 
     wind_speed_values = [
@@ -207,7 +279,7 @@ def fetch_weather_openweather(lat: float, lon: float) -> WeatherSignal:
     wind_speed = max(wind_speed_values or [0.0])
     wind_gust = max(wind_gust_values or [0.0])
 
-    print("✅ OpenWeather fetched successfully")
+    print("✅ OpenWeather 4.0 fetched successfully")
     print(f"🌬️ WIND: speed={wind_speed}, gust={wind_gust}")
     print(f"🌫️ FOG TODAY: {foggy}")
     print(f"🌧️ HEAVY RAIN TODAY: {heavy_rain}")
