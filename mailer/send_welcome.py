@@ -9,6 +9,8 @@ from mailer.content import (
     fetch_todays_headlines,
     pollen_level,
     pollen_context_line,
+    compute_commute,
+    allergy_risk,
 )
 from api.geo import geocode_zip
 from mailer.horoscope import get_horoscopes
@@ -47,6 +49,8 @@ def send_welcome_email(email, zip_code, horoscope):
             sunrise = "—"
             sunset = "—"
             tomorrow_sun_html = ""
+            commute_line = "Commute weather details are temporarily unavailable."
+            commute_details_html = ""
         else:
             tomorrow_weather_line = ""
 
@@ -54,8 +58,9 @@ def send_welcome_email(email, zip_code, horoscope):
                 tomorrow_weather_line = f"""
                 <div style="margin-top:12px;">
                     <strong>Tomorrow</strong><br/>
+                    Summary: {getattr(weather, "tomorrow_summary", "Weather summary unavailable.")}<br/>
                     <span style="color:#374151;">
-                        {getattr(weather, "tomorrow_condition", "Weather conditions unavailable")}
+                        Condition: {getattr(weather, "tomorrow_condition", "Weather conditions unavailable")}
                     </span><br/>
                     High: {weather.tomorrow_high_f}°F<br/>
                     Low: {weather.tomorrow_low_f}°F
@@ -64,8 +69,9 @@ def send_welcome_email(email, zip_code, horoscope):
 
             weather_line = f"""
             <strong>Today</strong><br/>
+            Summary: {getattr(weather, "summary", "Weather summary unavailable.")}<br/>
             <span style="color:#374151;">
-                {getattr(weather, "condition", "Weather conditions unavailable")}
+                Condition: {getattr(weather, "condition", "Weather conditions unavailable")}
             </span><br/>
             High: {weather.high_f}°F<br/>
             Low: {weather.low_f}°F
@@ -85,10 +91,24 @@ def send_welcome_email(email, zip_code, horoscope):
                 Sunset: {weather.tomorrow_sunset}
                 """
 
-        # -----------------------
-        # COMMUTE (SIMPLE)
-        # -----------------------
-        commute_line = "No major weather-related commute concerns."
+            # -----------------------
+            # COMMUTE (RICHER)
+            # -----------------------
+            commute = compute_commute(weather)
+            commute_line = commute["commute_line"]
+
+            commute_details_html = ""
+
+            if commute.get("show_details"):
+                precip_in = round(getattr(weather, "precip_mm", 0) * 0.03937, 2)
+
+                commute_details_html = f"""
+                <p style="margin-top:12px; font-size:13px; color:#4B5563;">
+                    Precipitation: {precip_in} in<br/>
+                    Commute Concern: {commute["ice_risk"]}<br/>
+                    {commute["ice_text"]}
+                </p>
+                """
 
         # -----------------------
         # 🌿 POLLEN HTML
@@ -111,7 +131,8 @@ def send_welcome_email(email, zip_code, horoscope):
                     Alder: {pollen_level(pollen.alder)}<br/>
                     Birch: {pollen_level(pollen.birch)}<br/>
                     Grass: {pollen_level(pollen.grass)}<br/>
-                    Ragweed: {pollen_level(pollen.ragweed)}
+                    Ragweed: {pollen_level(pollen.ragweed)}<br/>
+                    Allergy Risk: {allergy_risk(pollen)}
                 </p>
 
                 <p style="margin-top:12px; font-size:13px; color:#4B5563;">
@@ -238,6 +259,7 @@ def send_welcome_email(email, zip_code, horoscope):
                 ">
                     <h4 style="margin-top:0;">🚗 Before You Leave</h4>
                     <p>{commute_line}</p>
+                    {commute_details_html}
                 </div>
 
                 {pollen_html}
