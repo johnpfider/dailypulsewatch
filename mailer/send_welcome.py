@@ -201,14 +201,22 @@ def send_welcome_email(email, zip_code, horoscope):
 
                 <h2 style="margin-top:0;">👋 Welcome to DailyPulseWatch</h2>
 
-                <p>You're officially on the list.</p>
+                <p>I'm really glad you're here.</p>
 
                 <p>
-                    Starting today, you'll receive a simple daily briefing
-                    designed to help you start your day with clarity.
+                    If you signed up because life has felt a little overwhelming lately...
                 </p>
 
-                <h4 style="margin-top:20px;">🌤 Weather</h4>
+                <p>
+                    I hope this helps you feel just a little more prepared before each shift.
+                </p>
+
+                <p>
+                    Starting tomorrow, you'll receive a quick briefing designed to help you feel
+                    a little more prepared before your shift.
+                </p>
+
+                <h4 style="margin-top:20px;">🌤 Today's Forecast</h4>
                 <p>{weather_line}</p>
 
                 <h4 style="margin-top:20px;">🌅 Sun</h4>
@@ -228,7 +236,7 @@ def send_welcome_email(email, zip_code, horoscope):
                     border:1px solid #E5E7EB;
                     border-radius:14px;
                 ">
-                    <h4 style="margin-top:0;">🚗 Commute Weather Watch</h4>
+                    <h4 style="margin-top:0;">🚗 Before You Leave</h4>
                     <p>{commute_line}</p>
                 </div>
 
@@ -248,14 +256,34 @@ def send_welcome_email(email, zip_code, horoscope):
 
                 <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
 
-                <h4>💬 Quote</h4>
+                <h4>💬 Today's Inspiration</h4>
                 <p>
                     “{quote.get('text','')}”<br/>
                     — {quote.get('author','')}
                 </p>
 
+                <hr style="border:none; border-top:1px solid #E5E7EB; margin:20px 0;">
+
+                <p>
+                    <strong>P.S.</strong>
+                </p>
+
+                <p>
+                    If you haven't already, take five quiet minutes with your
+                    <strong>Healthcare Worker's Mental Unload</strong>, sent in a separate follow-up email.
+                    If you don't see it, be sure to check your Promotions or Junk folder.
+                </p>
+
+                <p>
+                    Sometimes that's the most valuable thing in your inbox today.
+                </p>
+
                 <div style="margin-top:28px;">
-                    <p><strong>Built by a nurse, for healthcare professionals.</strong></p>
+                    <p><strong>Built by a nurse for fellow healthcare workers.</strong></p>
+
+                    <p style="color:#4B5563;">
+                        Helping healthcare workers feel a little more prepared before every shift.
+                    </p>
 
                     <p style="color:#6B7280; font-size:12px;">
                         You’re receiving this because you signed up for DailyPulseWatch.

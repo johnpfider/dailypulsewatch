@@ -24,14 +24,23 @@ def send_mental_unload_email(email):
 
             <h2 style="margin-top:0;">The Healthcare Worker’s Mental Unload</h2>
 
+            <p style="
+                font-size:18px;
+                font-weight:600;
+                color:#374151;
+                margin-bottom:20px;
+            ">
+                Some shifts begin before you even walk through the door.
+            </p>
+
             <p>
                 Before the day gets louder, here’s a simple guided reflection exercise
                 to help you clear some mental space.
             </p>
 
             <p>
-                This is not therapy or counseling. It’s just a quiet reset for healthcare
-                workers carrying a lot.
+                This isn't therapy or counseling.
+                It's simply a quiet reset for healthcare professionals carrying a lot.
             </p>
 
             <hr style="border:none; border-top:1px solid #E5E7EB; margin:24px 0;">
@@ -63,11 +72,15 @@ def send_mental_unload_email(email):
             </p>
 
             <p>
-                I read every response.
+                I really do read every response.
             </p>
 
             <div style="margin-top:28px;">
-                <p><strong>Built by a nurse, for healthcare professionals.</strong></p>
+                <p><strong>Built by a fellow healthcare worker.</strong></p>
+
+                <p style="color:#4B5563;">
+                    Helping healthcare workers feel a little more prepared before every shift.
+                </p>
 
                 <p style="color:#6B7280; font-size:12px;">
                     You’re receiving this because you signed up for DailyPulseWatch.
