@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from api.db import close_pool, get_conn
 from mailer.send_welcome import send_welcome_email
+from mailer.admin_notify import notify_admin_new_subscriber
 
 
 # -----------------------
@@ -90,12 +91,13 @@ def subscribe(
         with conn.cursor() as cur:
 
             cur.execute(
-                "SELECT email FROM subscribers WHERE email = %s",
+                "SELECT email, is_active FROM subscribers WHERE email = %s",
                 (email,)
             )
             row = cur.fetchone()
 
             if row:
+                should_notify_admin = not row[1]
                 cur.execute(
                     """
                     UPDATE subscribers
@@ -108,6 +110,7 @@ def subscribe(
                 )
                 message = "reactivated"
             else:
+                should_notify_admin = True
                 cur.execute(
                     """
                     INSERT INTO subscribers (email, zip, horoscope, is_active)
@@ -123,6 +126,17 @@ def subscribe(
         send_welcome_email(email, zip, horoscope)
     except Exception as e:
         print(f"Welcome email error: {e}")
+
+    if should_notify_admin:
+        try:
+            notify_admin_new_subscriber(
+                email=email,
+                zip_code=zip,
+                horoscope=horoscope,
+                status=message,
+            )
+        except Exception as e:
+            print(f"Admin notification error: {e}")
 
     if message == "reactivated":
         heading = "✅ Welcome back!"
