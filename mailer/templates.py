@@ -200,7 +200,7 @@ def build_email(moon, weather, horoscopes, quote, user_email, pollen, headlines=
             </p>
 
             <div style="margin-top:24px;">
-                <p style="margin:0 0 10px 0;"><strong>Built by a nurse, for nurses.</strong></p>
+                <p style="margin:0 0 10px 0;"><strong>Built by a nurse, for healthcare professionals.</strong></p>
 
                 <p style="color:#6B7280; font-size:12px; margin:0 0 10px 0;">
                     You’re receiving this because you signed up for DailyPulseWatch.
